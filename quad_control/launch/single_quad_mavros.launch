@@ -57,7 +57,11 @@
     <!-- PARAMETERS THAT ARE COMMOM BETWEEN CONTROLLER AND SIMULATOR -->
     <!-- see WEB: ARDUCOPTER DIFFERENT MODES PARAMETERS -->
     <param name="MAX_ANGLE_DEG" value="45.0"/> 
-    <param name="MAX_PSI_SPEED_Deg" value="200.0"/>   
+    <param name="MAX_PSI_SPEED_Deg" value="200.0"/>
 
     </group>
+
+    <!-- Planner Node -->
+    <node pkg="quad_control" name="planner_Iris1" type="command_planner.py" output="screen"/>
+    
 </launch>

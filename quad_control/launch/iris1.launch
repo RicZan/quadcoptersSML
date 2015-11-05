@@ -36,4 +36,7 @@
 
   </group>
 
+  <!-- Planner Node -->
+  <node pkg="quad_control" name="planner_Iris1" type="command_planner.py" output="screen"/>
+
 </launch>

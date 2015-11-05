@@ -27,7 +27,7 @@
    <item row="3" column="1">
     <widget class="QTabWidget" name="TrajSelect">
      <property name="currentIndex">
-      <number>1</number>
+      <number>4</number>
      </property>
      <widget class="QWidget" name="tab">
       <attribute name="title">
@@ -346,6 +346,41 @@
       <attribute name="title">
        <string>Square</string>
       </attribute>
+     </widget>
+     <widget class="QWidget" name="tab_5">
+      <attribute name="title">
+       <string>Planner</string>
+      </attribute>
+      <layout class="QGridLayout" name="gridLayout_2">
+       <item row="0" column="0">
+        <widget class="QWidget" name="widget" native="true">
+         <layout class="QHBoxLayout" name="horizontalLayout">
+          <item>
+           <widget class="QPushButton" name="planner_start_button">
+            <property name="text">
+             <string>Start</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="planner_stop_button">
+            <property name="text">
+             <string>Stop</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QPlainTextEdit" name="planner_edit">
+         <property name="plainText">
+          <string>#10: circle(center_x=0,center_y=0, center_z=.5, r=.5, w=1./2/numpy.pi, theta=0, psi=0)
+#20: hold(x=0, y=0, z=.5)</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
      </widget>
     </widget>
    </item>

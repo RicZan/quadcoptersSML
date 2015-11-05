@@ -28,6 +28,7 @@ from quad_control.msg import quad_state_and_cmd
 # SERVICE BEING USED: TrajDes_GUI
 from quad_control.srv import *
 
+from std_srvs.srv import Empty
 
 import argparse
 
@@ -90,6 +91,10 @@ class TrajectorySelectionPlugin(Plugin):
         self._widget.DefaultOption1.toggled.connect(self.DefaultOptions)
         self._widget.DefaultOption2.toggled.connect(self.DefaultOptions)
         self._widget.DefaultOption3.toggled.connect(self.DefaultOptions)
+
+        # Planner buttons
+        self._widget.planner_start_button.clicked.connect(self.planner_start)
+        self._widget.planner_stop_button.clicked.connect(self.planner_stop)
 
     def DefaultOptions(self):
 
@@ -213,6 +218,26 @@ class TrajectorySelectionPlugin(Plugin):
         else:
             # is argv is empty return empty string
             return ""
+
+    # start planned trajectory
+    def planner_start(self):
+        try:
+            rospy.wait_for_service('planner_start',1)
+            start = rospy.ServiceProxy('planner_start',PlannerStart)
+
+            start(self._widget.planner_edit.toPlainText())
+        except rospy.ROSException, rospy.ServiceException:
+            rospy.logwarn('could not start planned trajectory')
+
+    # stop planned trajectory
+    def planner_stop(self):
+        try:
+            rospy.wait_for_service('planner_stop',1)
+            stop = rospy.ServiceProxy('planner_stop',Empty)
+
+            stop()
+        except rospy.ROSException, rospy.ServiceException:
+            rospy.logwarn('could not start planned trajectory')
     
     def shutdown_plugin(self):
         # TODO unregister all publishers here

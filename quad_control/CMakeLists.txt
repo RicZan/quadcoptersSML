@@ -66,6 +66,7 @@ add_service_files(
   Controller_Srv.srv
   Simulator_Srv.srv
   MocapBodies.srv
+  PlannerStart.srv
 )
 
 ## Generate actions in the 'action' folder
