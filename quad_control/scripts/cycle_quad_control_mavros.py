@@ -59,6 +59,8 @@ from ControllerACRO import ControllerOmega
 controllers_dictionary[3] = ControllerOmega
 from ControllerNeutral import ControllerNeutral
 controllers_dictionary[4] = ControllerNeutral
+from ControllerACRO1 import ControllerThrustOmega 
+controllers_dictionary[5] = ControllerThrustOmega
 
 controllers_with_state = [1,2]
 

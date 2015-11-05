@@ -338,6 +338,10 @@ class ChooseControllerPlugin(Plugin):
                     # ACRO controller selected
                     controller,parameters = self.ACRO_parameters()
 
+                if self._widget.ControllerSelect.currentIndex() == 3:
+                    # ACRO1 controller selected
+                    controller,parameters = self.ACRO1_parameters()
+
                 reply = SettingController(controller,parameters)
 
 
@@ -399,6 +403,18 @@ class ChooseControllerPlugin(Plugin):
 
         controller = 3
         parameters = None
+
+        return controller,parameters
+
+    def ACRO1_parameters(self):
+
+        controller = 5          # dictionary key of "controllers_dictionary" set on "cycle_quad_control_mavros.py"
+        
+        katt = self._widget.AttitudeGain.value()
+        ks = 1/katt
+        kb = self._widget.BoundedGain.value()
+
+        parameters = numpy.array([ks,katt,kb])
 
         return controller,parameters
 

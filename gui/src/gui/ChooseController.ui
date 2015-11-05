@@ -41,7 +41,7 @@
    <item row="3" column="1">
     <widget class="QTabWidget" name="ControllerSelect">
      <property name="currentIndex">
-      <number>1</number>
+      <number>3</number>
      </property>
      <widget class="QWidget" name="tab">
       <attribute name="title">
@@ -590,6 +590,93 @@
       <attribute name="title">
        <string>ACRO Controller</string>
       </attribute>
+     </widget>
+     <widget class="QWidget" name="tab_4">
+      <attribute name="title">
+       <string>ACRO Controller 1 </string>
+      </attribute>
+      <widget class="QGroupBox" name="groupBox_6">
+       <property name="geometry">
+        <rect>
+         <x>50</x>
+         <y>50</y>
+         <width>261</width>
+         <height>211</height>
+        </rect>
+       </property>
+       <property name="title">
+        <string>Gains</string>
+       </property>
+       <widget class="QDoubleSpinBox" name="SpaceGain">
+        <property name="geometry">
+         <rect>
+          <x>60</x>
+          <y>30</y>
+          <width>69</width>
+          <height>31</height>
+         </rect>
+        </property>
+       </widget>
+       <widget class="QLabel" name="label_8">
+        <property name="geometry">
+         <rect>
+          <x>30</x>
+          <y>40</y>
+          <width>31</width>
+          <height>16</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>ks</string>
+        </property>
+       </widget>
+       <widget class="QDoubleSpinBox" name="AttitudeGain">
+        <property name="geometry">
+         <rect>
+          <x>60</x>
+          <y>70</y>
+          <width>69</width>
+          <height>31</height>
+         </rect>
+        </property>
+       </widget>
+       <widget class="QDoubleSpinBox" name="BoundedGain">
+        <property name="geometry">
+         <rect>
+          <x>60</x>
+          <y>110</y>
+          <width>69</width>
+          <height>31</height>
+         </rect>
+        </property>
+       </widget>
+       <widget class="QLabel" name="label_9">
+        <property name="geometry">
+         <rect>
+          <x>20</x>
+          <y>80</y>
+          <width>31</width>
+          <height>16</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>katt</string>
+        </property>
+       </widget>
+       <widget class="QLabel" name="label_10">
+        <property name="geometry">
+         <rect>
+          <x>30</x>
+          <y>120</y>
+          <width>21</width>
+          <height>16</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>kb</string>
+        </property>
+       </widget>
+      </widget>
      </widget>
     </widget>
    </item>
