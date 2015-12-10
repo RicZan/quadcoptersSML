@@ -411,10 +411,11 @@ class ChooseControllerPlugin(Plugin):
         controller = 5          # dictionary key of "controllers_dictionary" set on "cycle_quad_control_mavros.py"
         
         katt = self._widget.AttitudeGain.value()
-        ks = 1/katt
+        ks = self._widget.SpaceGain.value() #1/katt
         kb = self._widget.BoundedGain.value()
+        ky = self._widget.YawGain.value()
 
-        parameters = numpy.array([ks,katt,kb])
+        parameters = numpy.array([ks,katt,kb,ky])
 
         return controller,parameters
 

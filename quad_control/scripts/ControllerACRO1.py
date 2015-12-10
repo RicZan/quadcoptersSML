@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # this line is just used to define the type of document
 
-import rospy
+import rospy 
 
 import numpy
 from numpy import *
@@ -29,7 +29,8 @@ class ControllerThrustOmega():
         if parameters != None:
             self.parameters.ks   = parameters[0]
             self.parameters.katt  = parameters[1]
-            self.parameters.kb  = parameters[1]
+            self.parameters.kb  = parameters[2]
+            self.parameters.ky  = parameters[3]
 
 
 
@@ -69,20 +70,20 @@ def controller(states,states_d,parameters):
     e3 = array([0.0, 0.0, 1.0])
     
     # position and velocity
-    x  = states[0:3];
-    v  = states[3:6];
+    x  = states[0:3]
+    v  = states[3:6]
 
     # thrust unit vector and its angular velocity
-    R  = states[6:15];
+    R  = states[6:15]
     R  = reshape(R,(3,3))
     n  = R.dot(e3)
 
     # desired quad trajectory
-    xd = states_d[0:3];
-    vd = states_d[3:6];
-    ad = states_d[6:9];
-    jd = states_d[9:12];
-    sd = states_d[12:15];
+    xd = states_d[0:3]
+    vd = states_d[3:6]
+    ad = states_d[6:9]
+    jd = states_d[9:12]
+    sd = states_d[12:15]
     
     # position error and velocity error
     ep = x - xd
@@ -91,7 +92,7 @@ def controller(states,states_d,parameters):
 
     # ****************** CONTROL INPUTS ************************#
     
-    # -----------------------Thrust --------------------------#
+    # ---------------------- Thrust --------------------------#
     u = ad + g*e3 + uBounded(ep, ev, parameters)
 
     #throttle
@@ -101,7 +102,7 @@ def controller(states,states_d,parameters):
     Thrust = m*T
 
 
-    # ------------------Angular Velocity ---------------------#
+    # ------------------ Angular Velocity ---------------------#
     
     # acceleration error
     ea = T*n - g*e3 - ad
@@ -120,11 +121,33 @@ def controller(states,states_d,parameters):
     dV2 = dV2Backstepping(ep, ev)
 
     # angular velocity    
-    ks = parameters.ks; 
-    katt = parameters.katt;
+    ks = parameters.ks
+    katt = parameters.katt
     RtrSn = dot(transpose(R),skew(n)) 
     w = wd - ks*norm(u)*dot(RtrSn,dV2) - katt*dot(RtrSnd,n)  # w = wd-ks*norm(u)*(R'*skew(n)*dV2)-katt*(R'*skew(nd)*n)
 
+
+
+    # ------------------ Yaw Control ---------------------#
+    
+    ky    = parameters.ky       # gain
+    psid = 0;                   # desired yaw
+    psidDot = 0;                # desired yaw-velocity
+    
+    # current euler angles
+    euler = GetEulerAngles(R);
+    phi   = euler[0]
+    theta = euler[1]
+    psi   = euler[2]
+
+    #A = array([cos(psid), sin(phid)])
+    #B = array([cos(psi), sin(phi)])
+    #AB = norm(A-B)
+    #ephi = 2*arcsin(AB/2)
+
+    ephi = arctan2(sin(psi-psid), cos(psi-psid))    # yaw error
+
+    w[2] = psidDot - ky*ephi
 
     # ------------------ Control Inputs Vector ------------------#
 
@@ -132,26 +155,6 @@ def controller(states,states_d,parameters):
     
     U[0] = Thrust
     U[1:4] = w
-
-
-    #??????????????????????????????????????????????????????????????????????????
-    #??????????????????????????????????????????????????????????????????????????
-    # # yaw control: gain
-    # k_yaw    = parameters.k_yaw; 
-    # # desired yaw: psi_star
-    # psi_star = parameters.psi_star; 
-    
-    # #current euler angles
-    # euler = GetEulerAngles(R);
-    # phi   = euler[0];
-    # theta = euler[1];
-    # psi   = euler[2];
-
-    # psi_star_dot = 0;
-    # psi_dot  = psi_star_dot - k_yaw*s(psi - psi_star);
-    # U[3]    = 1/c(phi)*(c(theta)*psi_dot - s(phi)*U[2]);
-    #??????????????????????????????????????????????????????????????????????????
-    #??????????????????????????????????????????????????????????????????????????
 
     U = Cmd_Converter(U, parameters)
 
@@ -183,9 +186,9 @@ def uBoundedDot(ep, ev, ea, parameters):
 def uBounded_Scalar(p, v, parameters):
 
     kb = parameters.kb; 
-    rospy.loginfo("dOmega=%s, Omega+sigma=%s" % (dOmega(v), Omega(v)+sigma(p)))
+    #rospy.loginfo("dOmega=%s, Omega+sigma=%s" % (dOmega(v), Omega(v)+sigma(p)))
 
-    return - kb*(sigma(p)/dOmega(v))*(v+sigma(p))/(Omega(v)+sigma(p)) - v*dsigma(p)/dOmega(v) - rho(Omega(v)+sigma(p));
+    return -kb*(sigma(p)/dOmega(v))*(v+sigma(p))/(Omega(v)+sigma(p)) - v*dsigma(p)/dOmega(v) - rho(Omega(v)+sigma(p));
 
 
 def uBoundedDot_Scalar(p, v, pDot, vDot, parameters):
@@ -237,7 +240,7 @@ def GetEulerAngles(R):
     sin_theta = -R[2,0]
     sin_theta = bound(sin_theta,1,-1)
     theta     = arcsin(sin_theta)
-    EULER[1]      = theta
+    EULER[1]  = theta
 
     sin_phi   = R[2,1]/c(theta)
     sin_phi   = bound(sin_phi,1,-1)
@@ -354,25 +357,25 @@ def ddrho(x):
 
 def Omega(x):
     if x>2:
-        return sign(x)*(3*x**2 - 3*x + 7)/6
+        return (3*x**2 - 3*x + 7)/6
     elif x>1:
-        return sign(x)*(x**3 - 3*x**2 + 9*x - 1)/6
+        return (x**3 - 3*x**2 + 9*x - 1)/6
     else:
         return x
 
 def dOmega(x):
     if x>2:
-        return sign(x)*(6*x - 3)/6
+        return (6*x - 3)/6
     elif x>1:
-        return sign(x)*(3*x**2 - 6*x + 9)/6
+        return (3*x**2 - 6*x + 9)/6
     else:
         return 1
 
 def ddOmega(x):
     if x>2:
-        return sign(x)
+        return 1
     elif x>1:
-        return sign(x)*(x - 1)
+        return (x - 1)
     else:
         return 0
 

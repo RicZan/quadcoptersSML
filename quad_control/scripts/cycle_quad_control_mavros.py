@@ -11,6 +11,9 @@ from mavros_msgs.msg import OverrideRCIn
 
 import rospy
 
+
+from quad_control.msg import ManipulatorPose
+
 # controller node publishes message of this type so that GUI can plot stuff
 from quad_control.msg import quad_state_and_cmd
 
@@ -30,6 +33,8 @@ from quad_control.msg import Controller_State
 # TrajDes is for selecting trajectory
 # Mocap_Id for body detection from QUALISYS
 # StartSim stop simulator
+from quad_control.srv import Manipulator
+from quad_control.srv import ManipulatorTask
 from quad_control.srv import *
 
 # when Mocap is used this is necessary
@@ -74,8 +79,19 @@ trajectories_dictionary[1] = traj_des_circle
 
 #-------------------------------------------------------#
 
+manipulator_dictionary = {}
+
+from ManipulatorNeutral import NeutralTask
+manipulator_dictionary[0] = NeutralTask
+from ManipulatorOscill import OscillTask
+manipulator_dictionary[1] = OscillTask
+
+#-------------------------------------------------------#
+
 
 class quad_controller():
+
+
 
     def __init__(self):
 
@@ -111,6 +127,18 @@ class quad_controller():
         Cler_class = controllers_dictionary[4]
         self.controller = Cler_class()
 
+
+        # Manipulator 
+        Manip_class = manipulator_dictionary[1]
+        self.manipulator = Manip_class()
+
+        self.minJointPWM = 800
+        self.maxJointPWM = 2000
+        self.minGripperPWM = 1000
+        self.maxGripperPWM = 1600
+
+        self.joint1 = self.minJointPWM
+        self.gripper = self.minGripperPWM
 
     def GET_STATE_(self):
 
@@ -230,7 +258,7 @@ class quad_controller():
 
 
     # callback for when changing controller is requested
-    def handle_Controller_Srv(self,req):
+    def handle_controller_select(self,req):
 
         # if GUI request certain controller, update flag on desired controller
         fg_Cler = req.flag_controller
@@ -254,6 +282,7 @@ class quad_controller():
 
         # return message to Gui, to let it know resquest has been fulfilled
         return Controller_SrvResponse(True)
+
 
 
     # callback for when changing desired trajectory is requested
@@ -287,29 +316,10 @@ class quad_controller():
         # return message to Gui, to let it know resquest has been fulfilled
         return TrajDes_SrvResponse(True)
 
-    # # function to stop simulator
-    # def stop_simulator(self):
-    #     try: 
-    #         rospy.wait_for_service('StartSimulator',1.0)
 
-    #         try:
-    #             AskForStart = rospy.ServiceProxy('StartSimulator', StartSim)
-
-    #             reply = AskForStart(False)
-    #             if reply.Started == True:
-    #                 return True
-    #             else:
-    #                 return False
-    #         except:
-    #             return False
-
-    #     except:
-    #         return False
 
     #callback for turning ON/OFF Mocap and turning OFF/ON the subscription to the simulator
     def handle_Mocap(self,req):
-
-
 
         # if mocap is turned on
         if self.flagMOCAP_On == True:
@@ -374,33 +384,6 @@ class quad_controller():
                     return Mocap_IdResponse(True,True)
 
 
-                # # stop simulator
-                # stop = self.stop_simulator()
-
-                # # if simulator stopped
-                # if stop == True:
-
-                #     if body_indice == -1:
-
-                #         # body does not exist
-                #         self.flagMOCAP = False
-
-                #         # body does not exist, but service was provided
-                #         return Mocap_IdResponse(False,True)
-                #     else:
-                #         # body exists
-                        
-                #         # set flag to on
-                #         self.flagMOCAP = True
-
-                #         # body EXISTS, and service was provided
-                #         return Mocap_IdResponse(True,True)
-                # else:
-                #     self.flagMOCAP = False
-                #     # service was NOT provided
-                #     return Mocap_IdResponse(False,False)
-
-
         else:
             # if Mocap is turned off, and we are requested to turn it on
             if req.On == True:
@@ -416,6 +399,9 @@ class quad_controller():
                 # service was provided
                 return Mocap_IdResponse(False,True)
 
+
+
+
     # return list of bodies detected by mocap or numbers 1 to 99 if not available
     def handle_available_bodies(self, dummy):
         if self.flagMOCAP_On:
@@ -427,6 +413,8 @@ class quad_controller():
                 pass
 
         return {"bodies": range(0,100)}
+
+
 
 
     def PublishToGui(self,states_d,Input_to_Quad):
@@ -469,10 +457,10 @@ class quad_controller():
             st_cmd.cmd_3     = Input_to_Quad[2]
             st_cmd.cmd_4     = Input_to_Quad[3]
 
-            st_cmd.cmd_5     = 1500.0
-            st_cmd.cmd_6     = 1500.0
-            st_cmd.cmd_7     = 1500.0
-            st_cmd.cmd_8     = 1500.0
+            st_cmd.cmd_5     = 1500
+            st_cmd.cmd_6     = 1500
+            st_cmd.cmd_7     = 1500
+            st_cmd.cmd_8     = 1500
 
             self.pub.publish(st_cmd)     
 
@@ -484,6 +472,8 @@ class quad_controller():
                 msg.d_est = self.controller.d_est
                 self.pub_ctr_st.publish(msg) 
         
+
+
     def PublishToQuad(self,Input_to_Quad):
 
         # create a message of the type quad_cmd, that the simulator subscribes to 
@@ -493,35 +483,78 @@ class quad_controller():
         cmd.cmd_3 = Input_to_Quad[2];
         cmd.cmd_4 = Input_to_Quad[3];
 
-        cmd.cmd_5 = 1500.0
-        cmd.cmd_6 = 1500.0
-        cmd.cmd_7 = 1500.0
-        cmd.cmd_8 = 1500.0
+        cmd.cmd_5 = 1500
+        cmd.cmd_6 = 1500
+        cmd.cmd_7 = 1500
+        cmd.cmd_8 = 1500
 
         self.pub_cmd.publish(cmd)
 
+    ###################################################
+    ################   MANIPULATOR   ##################
+    ###################################################
+
+    # callback for when changing controller is requested
+    def handle_manip_task_select(self,req):
+
+        # if GUI request certain task, update flag on desired task
+        fg_Task = req.flag_task
+
+        rospy.logwarn(fg_Task)
+
+        # some parameters user can change easily 
+        # req.parameters is a tuple
+        if len(req.parameters) == 0:
+            # if tuple req.parameters is empty:
+            Manip_parameters = None
+        else:     
+            # if tuple is not empty, cast parameters as numpy array 
+            Manip_parameters = numpy.array(req.parameters)
+
+        # update class for Controller
+        Manip_class = manipulator_dictionary[fg_Task]
+        # Cler_class = controllers_dictionary[2]
+
+        self.manipulator = Manip_class(Manip_parameters)
+
+        # return message to Gui, to let it know resquest has been fulfilled
+        return ManipulatorTaskResponse(True)
+
+
+
+    def handle_manip_pose(self, req):
+
+        self.joint1 = self.maxJointPWM - (self.maxJointPWM-self.minJointPWM)/180*req.PositionJoint1
+
+        rospy.logwarn(self.joint1)
+
+        if req.CloseGripper == True:
+            self.gripper = self.maxGripperPWM
+        else:
+            self.gripper = self.minGripperPWM
+
+        return ManipulatorResponse(True)
+
+
+
+    def manipulator_pose(self, data):
+
+        self.joint1 = data.Joint1
+        self.gripper = data.Gripper    
+
+
+    ###################################################
+    #################   MAIN LOOP   ###################
+    ###################################################
 
     def control_compute(self):
 
         # node will be named quad_control (see rqt_graph)
         rospy.init_node('quad_control', anonymous=True)
 
-        # message published by quad_control to GUI 
-        self.pub = rospy.Publisher('quad_state_and_cmd', quad_state_and_cmd, queue_size=10)
-        
-        # message published by quad_control that simulator will subscribe to 
-        self.pub_cmd = rospy.Publisher('quad_cmd', quad_cmd, queue_size=10)
-
-        # for publishing state of the controller
-        self.pub_ctr_st = rospy.Publisher('ctr_state', Controller_State, queue_size=10)
-        # initialize flag for publishing controller state at false
-        self.flagPublish_ctr_st = False
-
-        # controller needs to have access to STATE of the system
-        # this can come from QUALISYS, a sensor, or the simulator
-        self.SubToSim = rospy.Subscriber("quad_state", quad_state, self.get_state) 
 
         #-----------------------------------------------------------------------#
+        #----------------------   SAVE DATA   ----------------------------------#
         #-----------------------------------------------------------------------#
         # TO SAVE DATA FLAG
         # by default, NO data is saved
@@ -534,6 +567,7 @@ class quad_controller():
 
 
         #-----------------------------------------------------------------------#
+        #---------------------   TRAJECTORY   ----------------------------------#
         #-----------------------------------------------------------------------#
         # SERVICE FOR SELECTING DESIRED TRAJECTORY
         # by default, STAYING STILL IN ORIGIN IS DESIRED TRAJECTORY
@@ -544,8 +578,16 @@ class quad_controller():
         # initialize initial time for trajectory generation
         self.time_TrajDes_t0 = rospy.get_time()
 
+
         #-----------------------------------------------------------------------#
+        #-------------------------   MOCAP   -----------------------------------#
         #-----------------------------------------------------------------------#
+
+        # controller needs to have access to STATE of the system
+        # this can come from QUALISYS, a sensor, or the simulator
+        self.SubToSim = rospy.Subscriber("quad_state", quad_state, self.get_state) 
+
+
         # flag for MOCAP is initialized as FALSE
         # flag for wheter Mocap is being used or not
         self.flagMOCAP    = False
@@ -554,25 +596,47 @@ class quad_controller():
         # Service is created, so that Mocap is turned ON or OFF whenever we want
         Save_MOCAP_service = rospy.Service('Mocap_Set_Id', Mocap_Id, self.handle_Mocap)
 
-
         # Service for providing list of available mocap bodies to GUI
         mocap_available_bodies = rospy.Service('MocapBodies', MocapBodies, self.handle_available_bodies)
 
 
         #-----------------------------------------------------------------------#
+        #-------------------------   CONTROLLER   ------------------------------#
         #-----------------------------------------------------------------------#
+
+        # message published by quad_control to GUI 
+        self.pub = rospy.Publisher('quad_state_and_cmd', quad_state_and_cmd, queue_size=10)
+        
+        # message published by quad_control that simulator will subscribe to 
+        self.pub_cmd = rospy.Publisher('quad_cmd', quad_cmd, queue_size=10)
+
+        # for publishing state of the controller
+        self.pub_ctr_st = rospy.Publisher('ctr_state', Controller_State, queue_size=10)
+        # initialize flag for publishing controller state at false
+        self.flagPublish_ctr_st = False
+
+
         # Service is created, so that user can change controller on GUI
-        Chg_Contller = rospy.Service('Controller_GUI', Controller_Srv, self.handle_Controller_Srv)
+        Chg_Contller = rospy.Service('Controller_GUI', Controller_Srv, self.handle_controller_select)
 
-
-        #-----------------------------------------------------------------------#
-        #-----------------------------------------------------------------------#
         # Service for publishing state of controller 
         # we use same type of service as above
         Contller_St = rospy.Service('Controller_State_GUI', Controller_Srv, self.handle_Controller_State_Srv)
 
-
         
+        #-----------------------------------------------------------------------#
+        #----------------------   MANIPULATOR   --------------------------------#
+        #-----------------------------------------------------------------------#
+        # Subscribe to topic for setting a pose for the manipulator
+        self.SubToManip = rospy.Subscriber("manipulator_pose", ManipulatorPose, self.manipulator_pose) 
+
+        # Service for choosing the task for the manipulator 
+        manipulator_task_srv = rospy.Service('manipulator_task', ManipulatorTask, self.handle_manip_task_select)
+
+        # Service for setting a pose for the manipulator 
+        manipulator_pose_srv = rospy.Service('manipulator_commands', Manipulator, self.handle_manip_pose)
+        
+        # ------------------------------------------------------------------------
 
         # rc_override = rospy.Publisher('mavros/rc/override',OverrideRCIn,queue_size=10)
         rc_override = rospy.Publisher('mavros/rc/override', OverrideRCIn, queue_size=100)
@@ -595,6 +659,11 @@ class quad_controller():
             # states for desired trajectory
             states_d = self.traj_des()
 
+            # # compute input to send to Manipulator ####################################
+            # Input_to_Manip = self.manipulator.output(time)
+            # gr = Input_to_Manip[0]
+            # j1 = Input_to_Manip[1]
+
             # compute input to send to QUAD
             Input_to_Quad = self.controller.output(time,self.state_quad,states_d)
             
@@ -609,7 +678,7 @@ class quad_controller():
             # roll,pitch,throttle,yaw_rate
             # create message of type OverrideRCIn
             rc_cmd          = OverrideRCIn()
-            other_channels  = numpy.array([1500,1500,1500,1500])
+            other_channels  = numpy.array([1500,self.joint1,self.gripper,1500])
             aux             = numpy.concatenate([Input_to_Quad,other_channels])
             aux             = numpy.array(aux,dtype=numpy.uint16)
             rc_cmd.channels = aux

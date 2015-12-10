@@ -22,6 +22,8 @@ import subprocess
 # from mocap.msg import QuadPositionDerived
 
 from quad_control.msg import quad_state_and_cmd
+from quad_control.msg import quad_state
+from mavros_msgs.msg import State
 
 
 # import services defined in quad_control
@@ -60,7 +62,7 @@ class TrajectorySelectionPlugin(Plugin):
             print 'arguments: ', args
             print 'unknowns: ', unknowns
         
-        
+
         
         # Create QWidget
         self._widget = QWidget()
@@ -85,9 +87,29 @@ class TrajectorySelectionPlugin(Plugin):
         # ---------------------------------------------- #
 
         # BUTTON TO SET DESIRED TRAJECTORY
+
+        self.CurrentX = 0
+        self.CurrentY = 0
+        self.CurrentZ = 0
+
+        self.InitialX = 0
+        self.InitialY = 0
+        self.InitialZ = 0
+
+        self.FlagFlying = False
+
+        self.subPosition = rospy.Subscriber(self.namespace+'quad_state_and_cmd', quad_state_and_cmd, self.GetQuadPosition)
+        self.subPosition = rospy.Subscriber(self.namespace+'mavros/set_mode', State, self.CheckMode)
+
+        self._widget.SaveHome.clicked.connect(self.SaveHome)
+        self._widget.TakeOff.clicked.connect(self.TakeOff)
+        self._widget.GoUp.clicked.connect(self.GoUp)
+        self._widget.GoDown.clicked.connect(self.GoDown)
+        self._widget.GoHome.clicked.connect(self.GoHome)
+
         self._widget.SetTrajectory.clicked.connect(self.SetTrajectory)
-
-
+        #self._widget.GoUp.toggled.connect(self.DefaultPositions)
+        
         self._widget.DefaultOption1.toggled.connect(self.DefaultOptions)
         self._widget.DefaultOption2.toggled.connect(self.DefaultOptions)
         self._widget.DefaultOption3.toggled.connect(self.DefaultOptions)
@@ -95,6 +117,7 @@ class TrajectorySelectionPlugin(Plugin):
         # Planner buttons
         self._widget.planner_start_button.clicked.connect(self.planner_start)
         self._widget.planner_stop_button.clicked.connect(self.planner_stop)
+
 
     def DefaultOptions(self):
 
@@ -118,12 +141,85 @@ class TrajectorySelectionPlugin(Plugin):
             w  = 0.2
             z  = 0.6                   
 
-
         # Default values for buttons
         self._widget.box_radius_circle.setValue(r)
         self._widget.box_omega_circle.setValue(w)
         self._widget.box_z_circle.setValue(z)
 
+    def TakeOff(self):
+    
+        if self.FlagFlying == False:
+
+            self.FlagFlying = True
+            self.SaveHome()
+            self.GoUp()
+
+        else:
+            rospy.logwarn('Already Flying')
+            pass
+
+
+    def GoUp(self):
+    
+        x  = self.CurrentX
+        y  = self.CurrentY
+        z  = self.CurrentZ+1
+
+        self._widget.box_x.setValue(x)
+        self._widget.box_y.setValue(y)
+        self._widget.box_z.setValue(z)
+
+        self.SetTrajectory()
+
+    def GoDown(self):
+        
+        distZ = self.CurrentZ - self.InitialZ
+        if distZ>1.5:
+            d = 1
+        else:
+            rospy.logwarn('Current altitude (respect to initial): ', distZ)
+            d = 0
+
+        x  = self.CurrentX
+        y  = self.CurrentY
+        z  = self.CurrentZ-d
+            
+        self._widget.box_x.setValue(x)
+        self._widget.box_y.setValue(y)
+        self._widget.box_z.setValue(z)
+
+        self.SetTrajectory()
+
+    def SaveHome(self):
+
+        self.initialX  = self.CurrentX
+        self.initialY  = self.CurrentY
+        self.initialZ  = self.CurrentZ
+
+    def GoHome(self):
+
+        x  = self.initialX
+        y  = self.initialY
+        z  = self.CurrentZ
+
+        self._widget.box_x.setValue(x)
+        self._widget.box_y.setValue(y)
+        self._widget.box_z.setValue(z)
+
+        self.SetTrajectory()
+
+
+    def GetQuadPosition(self,data):
+        self.CurrentX = data.x
+        self.CurrentY = data.y
+        self.CurrentZ = data.z
+
+    def CheckMode(self,data):
+        mode = data.mode
+        if mode == 'LAND':
+            self.FlagFlying = False
+        else:
+            pass
 
     #@Slot(bool)
     def SetTrajectory(self):

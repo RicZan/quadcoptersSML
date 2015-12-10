@@ -9,6 +9,7 @@ from PyQt4.QtCore import QObject, pyqtSignal
 
 from quad_control.srv import Controller_Srv
 from quad_control.srv import MocapBodies
+from quad_control.srv import Manipulator
 
 from mavros_msgs.srv import CommandBool
 from mavros_msgs.srv import SetMode
@@ -107,6 +108,11 @@ class saver_mavrosPlugin(Plugin):
         self._widget.ModeSTABILIZE.toggled.connect(self.ChangeMode)
         self._widget.ModeACRO.toggled.connect(self.ChangeMode)
 
+        # Manipulator
+        self._widget.SetManipulator.clicked.connect(self.SetManipulator)
+        self._widget.Gripper.stateChanged.connect(self.SetManipulator)
+
+
 
     def MinThrottle(self):
         #Change the flight mode on the Pixhawk flight controller
@@ -137,6 +143,7 @@ class saver_mavrosPlugin(Plugin):
         if value: # only for pressed button (avoids double reaction)
 
             if self._widget.ModeLAND.isChecked():
+                self.Set_Manipulator_State(False, 0)
                 self.Set_Flight_Mode('LAND')
 
             elif self._widget.ModeSTABILIZE.isChecked():
@@ -233,6 +240,40 @@ class saver_mavrosPlugin(Plugin):
             rospy.logwarn('No connection to Mavros')
             # return False   
 
+    def SetManipulator(self):
+        JOINT1 = self._widget.Joint1.value()
+        if self._widget.Gripper.isChecked():
+            CLOSE_GRIPPER = True
+        else:
+            CLOSE_GRIPPER = False
+        self.Set_Manipulator_State(CLOSE_GRIPPER, JOINT1)
+
+    def Set_Manipulator_State(self,CLOSE_GRIPPER, JOINT1):
+
+        #Change the flight mode on the Pixhawk flight controller
+        try:
+            # it waits for service for 2 seconds
+            rospy.logwarn('\n Waiting for service...')
+            rospy.wait_for_service(self.namespace + 'manipulator_commands', 1.0) 
+
+            try:
+                rospy.logwarn('Setting MANIPULATOR...')
+                change_state = rospy.ServiceProxy(self.namespace + 'manipulator_commands', Manipulator)
+                manipulator_resp = change_state(CLOSE_GRIPPER, JOINT1)
+
+                if manipulator_resp.success:
+                    if CLOSE_GRIPPER == True:
+                        rospy.logwarn('gripper = CLOSE, joint = '+JOINT1)
+                    else:
+                        rospy.logwarn('gripper = OPEN, joint = '+JOINT1)
+                else:
+                    rospy.logwarn('Could not change Gripper configuration')
+
+            except:
+                rospy.logwarn('Failure: Service not available')
+
+        except:
+            rospy.logwarn('Failure: time out')
 
     #@Slot(bool)
     def StartSimulatorService(self):

@@ -35,6 +35,8 @@ from ChooseController import ChooseControllerPlugin
 
 from ChooseSimulator import ChooseSimulatorPlugin
 
+from ChooseManipulatorTask import ChooseManipulatorTaskPlugin
+
 
 
 import argparse
@@ -89,12 +91,13 @@ class tabbedGUIPlugin(Plugin):
         # # Adding all the tabs
 
 
-        self.saver_mavros        = saver_mavrosPlugin(context,self.namespace)
+        self.saver_mavros           = saver_mavrosPlugin(context,self.namespace)
         # self.saver               = saverPlugin(context,self.namespace)
-        self.positionPlot        = positionPlotPlugin(context,self.namespace)
-        self.TrajectorySelection = TrajectorySelectionPlugin(context,self.namespace)
-        self.ChooseController    = ChooseControllerPlugin(context,self.namespace)
-        self.ChooseSimulator     = ChooseSimulatorPlugin(context,self.namespace)
+        self.positionPlot           = positionPlotPlugin(context,self.namespace)
+        self.TrajectorySelection    = TrajectorySelectionPlugin(context,self.namespace)
+        self.ChooseController       = ChooseControllerPlugin(context,self.namespace)
+        self.ChooseSimulator        = ChooseSimulatorPlugin(context,self.namespace)
+        self.ChooseManipulatorTask  = ChooseManipulatorTaskPlugin(context,self.namespace)
 
 
         self._widget.tabWidget.addTab(self.saver_mavros._widget,'Data recorder')
@@ -103,6 +106,7 @@ class tabbedGUIPlugin(Plugin):
         self._widget.tabWidget.addTab(self.TrajectorySelection._widget,'Select Trajectory')
         self._widget.tabWidget.addTab(self.ChooseController._widget,'Select Controller')
         self._widget.tabWidget.addTab(self.ChooseSimulator._widget,'Select Simulator')
+        self._widget.tabWidget.addTab(self.ChooseManipulatorTask._widget,'Select Manipulator Task')
 
         self._widget.tabWidget.show()
 

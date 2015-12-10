@@ -14,13 +14,10 @@ class parameters_sys(object):
     # mass of vehicles (kg)
     m  = rospy.get_param("mass_quad_ctr",1.442)
 
-    
-    ##################################################################################################
-    ########################### ACRO Controller ######################################################
-    ################################################################################################## 
+
     # FOr ACRO Controller
     # controller gains
-    ktt  = rospy.get_param("ktt",1.0)
+    ktt  = rospy.get_param("ktt",100.0)
     ktt2 = rospy.get_param("ktt2",100.0)
 
     # SOME USEFUL RULES: kp = wn*wn  AND kv = 2 xsi wn    
@@ -35,7 +32,7 @@ class parameters_sys(object):
     sigma_v = rospy.get_param("sigma_v",1.0)
 
     # throttle that cancels weight
-    Throttle_neutral = rospy.get_param("Throttle_neutral_ctr",1484.0)
+    Throttle_neutral = rospy.get_param("Throttle_neutral_ctr",1430.0)
 
     # ACRO mode (angular velocity sensitivity)
     ACRO_RP_P = rospy.get_param("ACRO_RP_P_ctr",4.5)
@@ -46,35 +43,17 @@ class parameters_sys(object):
     # desired yaw: psi_star (RADIANS)
     psi_star = 0; 
 
-    ##################################################################################################
-    ########################### ACRO1 Controller ######################################################
-    ################################################################################################## 
-    # controller gains
-    #kb  = rospy.get_param("ks",1)
-    #katt  = rospy.get_param("ktt",15.0)
-    #ks  = rospy.get_param("ks",1/katt)
-    
-
-    # Lyapunov functions coefficients
-    #alpha   = rospy.get_param("alpha",k1*k2)
-    #gamma   = rospy.get_param("gamma",katt)
-    #beta  = rospy.get_param("beta",1)
-
-    ##################################################################################################
-    ########################### CONTROLLER 0 #########################################################
-    ################################################################################################## 
-
+    # ---------------------------------------------------------- #
+    # CONTROLLER 0
     MAX_ANGLE_DEG     = 45.0
     # The default of 4.5 commands a 200 deg/sec rate
     # of rotation when the yaw stick is held fully left or right.
     MAX_PSI_SPEED_Deg = 200.0
     
- 
+    # ---------------------------------------------------------- #
+    # ---------------------------------------------------------- #
 
-    ##################################################################################################
-    ########################### CONTROLLER 1 #########################################################
-    ################################################################################################## 
-
+    # CONTROLLER 1
     # SOME USEFUL RULES: kp = wn*wn  AND kv = 2 xsi wn    
     wn   = 1
     xsi  = numpy.sqrt(2)/2
@@ -87,6 +66,9 @@ class parameters_sys(object):
     ki_z_C1   = rospy.get_param("ki_z",2.0)
 
     Max_disturbance_C1 = numpy.array([1.0,1.0,1.0])
+
+    # ---------------------------------------------------------- #
+    # ---------------------------------------------------------- #
 
 
     # The class "constructor" - It's actually an initializer

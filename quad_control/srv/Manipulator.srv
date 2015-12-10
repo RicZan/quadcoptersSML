@@ -1,0 +1,4 @@
+bool CloseGripper  
+float64 PositionJoint1 
+---
+bool success

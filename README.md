@@ -20,7 +20,7 @@ rosdep update
 ~~~~
 
 Make sure the ROS environment variables are set when bash-terminals are launched.
-To do this, add `source /opt/ros/indigo/setup.bash` to the file `.bashrc`.
+To do this, add `source /opt/ros/indigo/setup.bash`.
 You can do this, by executing
 ~~~~
 echo "source /opt/ros/indigo/setup.bash" >> ~/.bashrc
@@ -33,8 +33,8 @@ The installation of rosinstall (package `python-rosinstall`) is not required.
 ## Setup Workspace
 
 (For more detailed instructions see the [official ROS tutorial](http://wiki.ros.org/ROS/Tutorials/InstallingandConfiguringROSEnvironment).)
-Create a new folder and make sure it contains a folder named `src`.
-Make sure this `src` directory is in the `ROS_PACKAGE_PATH` variable.
+Create a workspace folder and make sure it contains a folder named `src`.
+In this `src` folder run `catkin_init_workspace` and make sure this directory is in the `ROS_PACKAGE_PATH` variable.
 You can check this with `echo $ROS_PACKAGE_PATH`.
 If the directory is missing (which is likely), add the line
 ~~~~
@@ -43,26 +43,25 @@ export ROS_PACKAGE_PATH=~/[your ros workspace]/src:${ROS_PACKAGE_PATH}
 to the file `~/.bashrc`.
 For this to take effect, you should close and reopen the terminal or type `source ~/.bashrc`.
 
-To clone the project files from GitHub, start a terminal window and navigate to the `src` folder.
-Now run the following command (including the dot at the end!):
+To get the files for this project from git, start a terminal window and navigate to the `src` folder.
+Now run
 ~~~~
 git clone --recursive https://github.com/antonioadaldo/quadcoptersSML.git .
 ~~~~
-to obtain the relevant files.
-The `--recursive` option makes sure that the mavros packages are downloaded as a submodule.
+(including the dot!) to obtain the relevant files.
+The `--recursive` option makes sure that the mavros packages are also downloaded as a submodule.
 If you have received this project as an archive, copy the relevant subfolders (currently `quad_control`, `gui` and possibly `mavros`) into the `src` folder.
-Now you can initialize the ROS workspace by running `catkin_init_workspace` (within the `src` folder). 
 If mavros is not included, create a folder and get the files from `https://github.com/mavlink/mavros`.
 
 You should only have one mavros installation in your ROS path, i.e. you should not have mavros installed in another workspace or from the Ubuntu repositories (the mavros version that is currently available there is too old).
 
 To make sure that mavros can access your USB port, you might need to add your user to the group `dialout` by executing `sudo usermod -a -G dialout $USER`.
 (You might need to log out out and log in againt for this to take effect.)
-Futhermore you need to install the control toolbox, which is required by mavros, by running the command `sudo apt-get install ros-indigo-control-toolbox` in a terminal.
+Futhermore you need to install the control toolbox using `sudo apt-get install ros-indigo-control-toolbox` to use mavros.
 
 ## Build Project
 
-Run `catkin_make` from the workspace root (the folder containing the `src` folder).
+Run `catkin_make` from the workspace root.
 
 ## Run Project
 
@@ -81,12 +80,12 @@ rqt --standalone  tabbedGUI --args Iris1/
 
 ### With Mavros
 
-If you want to connect to an actual quadcopter, run the following two sequences, each in its own terminal window in the workspace root:
+If you want to connect to an actual quadcopter, run the following three blocks, each in his own terminal window in the workspace root:
 ~~~~
 source ./devel/setup.bash
 roslaunch quad_control single_quad_mavros.launch
 ~~~~
-and
+and 
 ~~~~
 source ./devel/setup.bash
 rqt --standalone  tabbedGUI --args Iris1/

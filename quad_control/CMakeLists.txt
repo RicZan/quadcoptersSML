@@ -53,6 +53,7 @@ add_message_files(
    quad_state.msg
    quad_cmd.msg
    Controller_State.msg
+   ManipulatorPose.msg
    Num.msg
 )
 
@@ -67,6 +68,8 @@ add_service_files(
   Simulator_Srv.srv
   MocapBodies.srv
   PlannerStart.srv
+  Manipulator.srv
+  ManipulatorTask.srv
 )
 
 ## Generate actions in the 'action' folder
@@ -116,7 +119,7 @@ add_service_files(
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES quad_control
-  CATKIN_DEPENDS roscpp rospy std_msgs
+   CATKIN_DEPENDS roscpp rospy std_msgs
 #  DEPENDS system_lib
    CATKIN_DEPENDS message_runtime
    # CATKIN_DEPENDS mavros

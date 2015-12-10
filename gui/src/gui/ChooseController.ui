@@ -616,6 +616,9 @@
           <height>31</height>
          </rect>
         </property>
+        <property name="value">
+         <double>0.150000000000000</double>
+        </property>
        </widget>
        <widget class="QLabel" name="label_8">
         <property name="geometry">
@@ -639,6 +642,9 @@
           <height>31</height>
          </rect>
         </property>
+        <property name="value">
+         <double>5.000000000000000</double>
+        </property>
        </widget>
        <widget class="QDoubleSpinBox" name="BoundedGain">
         <property name="geometry">
@@ -648,6 +654,9 @@
           <width>69</width>
           <height>31</height>
          </rect>
+        </property>
+        <property name="value">
+         <double>0.500000000000000</double>
         </property>
        </widget>
        <widget class="QLabel" name="label_9">
@@ -674,6 +683,32 @@
         </property>
         <property name="text">
          <string>kb</string>
+        </property>
+       </widget>
+       <widget class="QDoubleSpinBox" name="YawGain">
+        <property name="geometry">
+         <rect>
+          <x>60</x>
+          <y>150</y>
+          <width>69</width>
+          <height>31</height>
+         </rect>
+        </property>
+        <property name="value">
+         <double>4.000000000000000</double>
+        </property>
+       </widget>
+       <widget class="QLabel" name="label_18">
+        <property name="geometry">
+         <rect>
+          <x>30</x>
+          <y>160</y>
+          <width>21</width>
+          <height>16</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>ky</string>
         </property>
        </widget>
       </widget>
