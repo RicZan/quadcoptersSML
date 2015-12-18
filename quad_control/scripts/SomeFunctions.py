@@ -118,12 +118,12 @@ class Median_Filter():
     
     def update_data(self,new_data):
         N = self.N
-        self.data[:-1] = self.data[1:]
-        self.data[-1]  = new_data
+        self.data[:-1] = self.data[1:]      # data{0:N-2} <- data{1:N-1}      we shift the array to left loosing the oldest element (i=0)
+        self.data[-1]  = new_data           # data{N-1} <- new_data           replace the last element (i=N-1) with the newest
 
     def output(self):
-        return numpy.median(self.data)
-
+        return numpy.median(self.data)      # middle value of a sorted copy of the vector "self.data" 
+                                            # (When N is even, it is the average of the two middle values)
     def up_and_out(self,new_data):
         self.update_data(new_data)
         return self.output()
@@ -151,7 +151,7 @@ class Velocity_Filter():
 
     def out(self,new_position,new_time):
         dt = new_time - self.old_time
-        vel_estimate =  (new_position - self.old_position)/dt
+        vel_estimate =  (new_position - self.old_position)/dt 
         self.old_position = new_position
         self.old_time = new_time
         return self.median_filter.up_and_out(vel_estimate)

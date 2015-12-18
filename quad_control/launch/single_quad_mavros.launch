@@ -33,6 +33,8 @@
     <!-- Controller parameters -->
     <param name="gravity_ctr" value="9.81"/>
     <param name="mass_quad_ctr" value="1.442"/>
+    <param name="mass_manip_ctr" value="0.300"/>
+    <param name="mass_load_ctr" value="0.0"/>
     <param name="Throttle_neutral_ctr" value="1484.0"/>  
     <param name="ACRO_RP_P_ctr" value="4.5"/> 
     <param name="ktt" value="20.0"/> 
@@ -49,6 +51,8 @@
     <!-- Simulator parameters -->
     <param name="gravity_sim" value="9.81"/>
     <param name="mass_quad_sim" value="1.442"/>
+    <param name="mass_manip_sim" value="0.300"/>
+    <param name="mass_load_sim" value="0"/>
     <param name="Throttle_neutral_sim" value="1484.0"/>  
     <param name="ACRO_RP_P_sim" value="4.5"/> 
     <param name="ktt_inner_loop" value="10.0"/> 

@@ -600,8 +600,8 @@
         <rect>
          <x>50</x>
          <y>50</y>
-         <width>261</width>
-         <height>211</height>
+         <width>151</width>
+         <height>191</height>
         </rect>
        </property>
        <property name="title">
@@ -623,10 +623,10 @@
        <widget class="QLabel" name="label_8">
         <property name="geometry">
          <rect>
-          <x>30</x>
-          <y>40</y>
-          <width>31</width>
-          <height>16</height>
+          <x>20</x>
+          <y>30</y>
+          <width>81</width>
+          <height>31</height>
          </rect>
         </property>
         <property name="text">
@@ -663,9 +663,9 @@
         <property name="geometry">
          <rect>
           <x>20</x>
-          <y>80</y>
-          <width>31</width>
-          <height>16</height>
+          <y>70</y>
+          <width>101</width>
+          <height>31</height>
          </rect>
         </property>
         <property name="text">
@@ -675,10 +675,10 @@
        <widget class="QLabel" name="label_10">
         <property name="geometry">
          <rect>
-          <x>30</x>
-          <y>120</y>
-          <width>21</width>
-          <height>16</height>
+          <x>20</x>
+          <y>110</y>
+          <width>31</width>
+          <height>31</height>
          </rect>
         </property>
         <property name="text">
@@ -701,14 +701,144 @@
        <widget class="QLabel" name="label_18">
         <property name="geometry">
          <rect>
-          <x>30</x>
-          <y>160</y>
+          <x>20</x>
+          <y>150</y>
+          <width>31</width>
+          <height>31</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>ky</string>
+        </property>
+       </widget>
+      </widget>
+      <widget class="QGroupBox" name="groupBox_8">
+       <property name="geometry">
+        <rect>
+         <x>50</x>
+         <y>260</y>
+         <width>171</width>
+         <height>191</height>
+        </rect>
+       </property>
+       <property name="title">
+        <string>integral</string>
+       </property>
+       <widget class="QDoubleSpinBox" name="IntegralGainX">
+        <property name="geometry">
+         <rect>
+          <x>60</x>
+          <y>60</y>
+          <width>69</width>
+          <height>31</height>
+         </rect>
+        </property>
+        <property name="value">
+         <double>5.000000000000000</double>
+        </property>
+       </widget>
+       <widget class="QCheckBox" name="SWTCHint">
+        <property name="geometry">
+         <rect>
+          <x>20</x>
+          <y>30</y>
+          <width>161</width>
+          <height>22</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Enable</string>
+        </property>
+       </widget>
+       <widget class="QLabel" name="label_19">
+        <property name="geometry">
+         <rect>
+          <x>20</x>
+          <y>70</y>
           <width>21</width>
           <height>16</height>
          </rect>
         </property>
         <property name="text">
-         <string>ky</string>
+         <string>kix</string>
+        </property>
+       </widget>
+       <widget class="QDoubleSpinBox" name="IntegralGainY">
+        <property name="geometry">
+         <rect>
+          <x>60</x>
+          <y>100</y>
+          <width>69</width>
+          <height>31</height>
+         </rect>
+        </property>
+        <property name="value">
+         <double>1.500000000000000</double>
+        </property>
+       </widget>
+       <widget class="QLabel" name="label_39">
+        <property name="geometry">
+         <rect>
+          <x>20</x>
+          <y>110</y>
+          <width>21</width>
+          <height>16</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>kiy</string>
+        </property>
+       </widget>
+       <widget class="QDoubleSpinBox" name="IntegralGainZ">
+        <property name="geometry">
+         <rect>
+          <x>60</x>
+          <y>140</y>
+          <width>69</width>
+          <height>31</height>
+         </rect>
+        </property>
+        <property name="value">
+         <double>1.000000000000000</double>
+        </property>
+       </widget>
+       <widget class="QLabel" name="label_40">
+        <property name="geometry">
+         <rect>
+          <x>20</x>
+          <y>150</y>
+          <width>21</width>
+          <height>16</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>kiz</string>
+        </property>
+       </widget>
+      </widget>
+      <widget class="QGroupBox" name="groupBox_7">
+       <property name="geometry">
+        <rect>
+         <x>250</x>
+         <y>50</y>
+         <width>261</width>
+         <height>171</height>
+        </rect>
+       </property>
+       <property name="title">
+        <string>Manipulator</string>
+       </property>
+       <widget class="QCheckBox" name="SWTCHmanip">
+        <property name="geometry">
+         <rect>
+          <x>20</x>
+          <y>30</y>
+          <width>97</width>
+          <height>22</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Attached</string>
         </property>
        </widget>
       </widget>

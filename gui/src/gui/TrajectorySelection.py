@@ -88,6 +88,8 @@ class TrajectorySelectionPlugin(Plugin):
 
         # BUTTON TO SET DESIRED TRAJECTORY
 
+        self.altitudeOffset = 0.8
+
         self.CurrentX = 0
         self.CurrentY = 0
         self.CurrentZ = 0
@@ -163,7 +165,7 @@ class TrajectorySelectionPlugin(Plugin):
     
         x  = self.CurrentX
         y  = self.CurrentY
-        z  = self.CurrentZ+1
+        z  = self.CurrentZ+self.altitudeOffset
 
         self._widget.box_x.setValue(x)
         self._widget.box_y.setValue(y)
@@ -175,9 +177,9 @@ class TrajectorySelectionPlugin(Plugin):
         
         distZ = self.CurrentZ - self.InitialZ
         if distZ>1.5:
-            d = 1
+            d = self.altitudeOffset
         else:
-            rospy.logwarn('Current altitude (respect to initial): ', distZ)
+            rospy.logwarn(['Current altitude (respect to initial): ', distZ])
             d = 0
 
         x  = self.CurrentX
@@ -200,11 +202,11 @@ class TrajectorySelectionPlugin(Plugin):
 
         x  = self.initialX
         y  = self.initialY
-        z  = self.CurrentZ
+        #z  = self.CurrentZ
 
         self._widget.box_x.setValue(x)
         self._widget.box_y.setValue(y)
-        self._widget.box_z.setValue(z)
+        #self._widget.box_z.setValue(z)
 
         self.SetTrajectory()
 
@@ -219,7 +221,7 @@ class TrajectorySelectionPlugin(Plugin):
         if mode == 'LAND':
             self.FlagFlying = False
         else:
-            pass
+            self.FlagFlying = True
 
     #@Slot(bool)
     def SetTrajectory(self):

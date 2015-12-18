@@ -47,13 +47,20 @@ class parameters_sys(object):
     psi_star = 0; 
 
     ##################################################################################################
-    ########################### ACRO1 Controller ######################################################
+    ########################### Manipulator Controller ######################################################
     ################################################################################################## 
     # controller gains
     #kb  = rospy.get_param("ks",1)
     #katt  = rospy.get_param("ktt",15.0)
     #ks  = rospy.get_param("ks",1/katt)
     
+
+    # mass of vehicles (kg)
+    massQuad  = rospy.get_param("mass_quad_ctr",1.442)
+    # mass of vehicles (kg)
+    massManip  = rospy.get_param("mass_manip_ctr",0.300)
+    # mass of vehicles (kg)
+    massLoad  = rospy.get_param("mass_load_ctr",0)
 
     # Lyapunov functions coefficients
     #alpha   = rospy.get_param("alpha",k1*k2)

@@ -14,7 +14,7 @@ class parameters_sys(object):
     g = rospy.get_param("gravity_sim",9.81)
     
     # mass of vehicles (kg)
-    m = rospy.get_param("mass_quad_sim",1.442)
+    m = rospy.get_param("mass_quad_sim",1.442) #
 
     # throttle that cancels weight
     Throttle_neutral = rospy.get_param("Throttle_neutral_sim",1484.0)

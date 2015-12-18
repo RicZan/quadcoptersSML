@@ -410,12 +410,28 @@ class ChooseControllerPlugin(Plugin):
 
         controller = 5          # dictionary key of "controllers_dictionary" set on "cycle_quad_control_mavros.py"
         
+        # control gains
         katt = self._widget.AttitudeGain.value()
         ks = self._widget.SpaceGain.value() #1/katt
         kb = self._widget.BoundedGain.value()
         ky = self._widget.YawGain.value()
+        kix = self._widget.IntegralGainX.value()
+        kiy = self._widget.IntegralGainY.value()
+        kiz = self._widget.IntegralGainZ.value()
 
-        parameters = numpy.array([ks,katt,kb,ky])
+        # saturation limits
+        #sat = self._widget.SaturationGain.value()
+
+        #time for integration
+        time = rospy.get_time()
+
+        #flags actions
+        SWTCHint = self._widget.SWTCHint.isChecked()
+        rospy.logwarn(['Integral Action: ', SWTCHint])
+        SWTCHmanip = self._widget.SWTCHmanip.isChecked()
+        rospy.logwarn(['Manipulator Attached: ', SWTCHmanip])
+
+        parameters = numpy.array([ks,katt,kb,ky,kix,kiy,kiz,time,SWTCHint,SWTCHmanip])  #,flagIntegral
 
         return controller,parameters
 

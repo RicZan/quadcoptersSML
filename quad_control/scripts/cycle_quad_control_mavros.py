@@ -132,11 +132,12 @@ class quad_controller():
         Manip_class = manipulator_dictionary[1]
         self.manipulator = Manip_class()
 
-        self.minJointPWM = 800
-        self.maxJointPWM = 2000
-        self.minGripperPWM = 1000
-        self.maxGripperPWM = 1600
+        self.minJointPWM = 800      # 0deg
+        self.maxJointPWM = 2000     # 180deg
+        self.minGripperPWM = 1000   # open
+        self.maxGripperPWM = 1600   # close
 
+        self.joint1Angle = 0
         self.joint1 = self.minJointPWM
         self.gripper = self.minGripperPWM
 
@@ -524,6 +525,7 @@ class quad_controller():
 
     def handle_manip_pose(self, req):
 
+        self.joint1Angle = req.PositionJoint1
         self.joint1 = self.maxJointPWM - (self.maxJointPWM-self.minJointPWM)/180*req.PositionJoint1
 
         rospy.logwarn(self.joint1)
@@ -537,10 +539,19 @@ class quad_controller():
 
 
 
-    def manipulator_pose(self, data):
+    def callback_manipulator_pose(self, data):
 
-        self.joint1 = data.Joint1
-        self.gripper = data.Gripper    
+        self.joint1Angle = data.PositionJoint1
+        self.joint1 = self.maxJointPWM - (self.maxJointPWM-self.minJointPWM)/180*data.PositionJoint1
+
+        rospy.logwarn(self.joint1)
+
+        if data.CloseGripper == True:
+            self.gripper = self.maxGripperPWM
+        else:
+            self.gripper = self.minGripperPWM
+
+        return ManipulatorResponse(True) 
 
 
     ###################################################
@@ -628,7 +639,7 @@ class quad_controller():
         #----------------------   MANIPULATOR   --------------------------------#
         #-----------------------------------------------------------------------#
         # Subscribe to topic for setting a pose for the manipulator
-        self.SubToManip = rospy.Subscriber("manipulator_pose", ManipulatorPose, self.manipulator_pose) 
+        self.SubToManip = rospy.Subscriber("manipulator_pose", ManipulatorPose, self.callback_manipulator_pose) 
 
         # Service for choosing the task for the manipulator 
         manipulator_task_srv = rospy.Service('manipulator_task', ManipulatorTask, self.handle_manip_task_select)
@@ -658,6 +669,7 @@ class quad_controller():
 
             # states for desired trajectory
             states_d = self.traj_des()
+            states_d1 = concatenate((states_d,array([self.joint1Angle])))
 
             # # compute input to send to Manipulator ####################################
             # Input_to_Manip = self.manipulator.output(time)
@@ -665,7 +677,7 @@ class quad_controller():
             # j1 = Input_to_Manip[1]
 
             # compute input to send to QUAD
-            Input_to_Quad = self.controller.output(time,self.state_quad,states_d)
+            Input_to_Quad = self.controller.output(time,self.state_quad,states_d1)
             
             # Publish commands to Quad
             self.PublishToQuad(Input_to_Quad)

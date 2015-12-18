@@ -3,6 +3,8 @@
 
 import rospy 
 
+import sys
+
 import numpy
 from numpy import *
 from numpy.linalg import *
@@ -10,36 +12,48 @@ from numpy import cos as c
 from numpy import sin as s
 
 from SomeFunctions import OP,skew,GetRotFromEulerAnglesDeg
+from SomeFunctions import GetRotFromEulerAnglesDeg,Velocity_Filter
 
 from Controllers_Parameters import parameters_sys
 
 
+e3 = array([0, 0, 1])   # third canonical basis vector
+g = 9.81                # gravity acceleration
+
 class ControllerThrustOmega():
-    
-    # DEFAULT PARAMETERS
-    parameters = parameters_sys()
 
-    # this is a static controller, but I include this here for convenience
-    # so that all controllers have an estimated disturbance
-    d_est      = zeros(3)
-
-
+    # DEFAULT PARAMETERS (setted in "Controllers_Parameters.py": quad mass, gravity, ecc...)
+    parameters = parameters_sys()   
 
     def __init__(self,parameters = None):
-        if parameters != None:
+
+        if parameters != None:          
+            # Parameters setted when the object "Controller" is created         
+            # for example inside "cycle_quad_control_mavros.py" are setted from the GUI
+            # with a service wich use the callback function "handle_controller_select"      
             self.parameters.ks   = parameters[0]
             self.parameters.katt  = parameters[1]
             self.parameters.kb  = parameters[2]
             self.parameters.ky  = parameters[3]
+            self.parameters.kix  = parameters[4]
+            self.parameters.kiy  = parameters[5]
+            self.parameters.kiz  = parameters[6]
+        
+        self.timeNew  = parameters[7]
+        self.timeOld  = self.timeNew
 
+        self.SwitchIntegral  = parameters[8]
+        self.dEstimateCurrent = 0
 
+        self.SwitchManipulator  = parameters[9]
+        #self.loadMass = parameters[10]
 
-    def update_parameters(self,parameters):
-        self.parameters = parameters
-
+        self.RotationMatrixDerivative = MatrixDerivative(3,zeros((3,3)),0)
 
 
     def output(self,t,states,states_d):
+
+        self.timeNew = t
 
         # convert euler angles from deg to rotation matrix
         ee = states[6:9]
@@ -48,264 +62,276 @@ class ControllerThrustOmega():
 
         # collecting states
         states  = concatenate([states[0:6],R])
-        return controller(states,states_d,self.parameters)
-
-
+        return self.controller(states,states_d)
 
-##################################################################################################
-########################### CONTROLLER ###########################################################
-##################################################################################################
-
-def controller(states,states_d,parameters):
-    
-    # ****************** PARAMETERS ************************#
 
-    # mass of vehicles (kg)
-    m = parameters.m
-    
-    # acceleration due to gravity (m/s^2)
-    g  = parameters.g
-    
-    # third canonical basis vector
-    e3 = array([0.0, 0.0, 1.0])
-    
-    # position and velocity
-    x  = states[0:3]
-    v  = states[3:6]
+    ##################################################################################################
+    ########################### CONTROLLER ###########################################################
+    ##################################################################################################
 
-    # thrust unit vector and its angular velocity
-    R  = states[6:15]
-    R  = reshape(R,(3,3))
-    n  = R.dot(e3)
+    def controller(self,states,states_d):
+        
+        intON = self.SwitchIntegral
 
-    # desired quad trajectory
-    xd = states_d[0:3]
-    vd = states_d[3:6]
-    ad = states_d[6:9]
-    jd = states_d[9:12]
-    sd = states_d[12:15]
-    
-    # position error and velocity error
-    ep = x - xd
-    ev = v - vd
+        # ****************** PARAMETERS ************************#
 
+        self.refreshModel(states,states_d)
 
-    # ****************** CONTROL INPUTS ************************#
-    
-    # ---------------------- Thrust --------------------------#
-    u = ad + g*e3 + uBounded(ep, ev, parameters)
+        # mass (kg)
+        m = self.parameters.m 
+        
+        # quad position and velocity
+        p  = states[0:3] 
+        v  = states[3:6]
 
-    #throttle
-    T = dot(u,n)    # T = u'*n     
+        # normal unit vector
+        R  = states[6:15]           # v{I}=R*v{Q}
+        R  = reshape(R,(3,3))
+        n  = R.dot(e3)
 
-    #thrust
-    Thrust = m*T
+        # desired quad trajectory
+        pd = states_d[0:3]
+        vd = states_d[3:6]
+        ad = states_d[6:9]
+        jd = states_d[9:12]
+        sd = states_d[12:15]
 
+        # position error and velocity error
+        ep = p - pd
+        ev = v - vd
 
-    # ------------------ Angular Velocity ---------------------#
-    
-    # acceleration error
-    ea = T*n - g*e3 - ad
+        # ****************** CONTROL INPUTS ************************#
+        
+        # ---------------------- Thrust --------------------------#
+        u = ad + g*e3 + self.uBounded(ep, ev) - self.dEstimate(ep, ev)*intON
 
-    # derivative of "u"
-    uDot = jd + uBoundedDot(ep, ev, ea, parameters)
+        #throttle
+        T = dot(u,n)    # T = u'*n     
 
-    # desired attitude
-    nd = u/norm(u)                                       
+        #thrust
+        Thrust = m*T
 
-    # desired angular velocity 
-    RtrSnd = dot(transpose(R),skew(nd))                         # R'*skew(nd)                      
-    wd = dot(RtrSnd,uDot)/norm(u)                               # wd = (R'*skew(nd)*uDot)/norm(u)
 
-    # partial derivative lyapunov function 
-    dV2 = dV2Backstepping(ep, ev)
+        # ------------------ Angular Velocity ---------------------#
+        
+        # acceleration error
+        ea = T*n - g*e3 - ad
 
-    # angular velocity    
-    ks = parameters.ks
-    katt = parameters.katt
-    RtrSn = dot(transpose(R),skew(n)) 
-    w = wd - ks*norm(u)*dot(RtrSn,dV2) - katt*dot(RtrSnd,n)  # w = wd-ks*norm(u)*(R'*skew(n)*dV2)-katt*(R'*skew(nd)*n)
+        # derivative of "u"
+        uDot = jd + self.uBoundedDot(ep, ev, ea) - self.dEstimateDot(ep, ev)*intON
 
+        # desired attitude
+        nd = u/norm(u)                                       
 
+        # desired angular velocity 
+        RtrSnd = dot(transpose(R),skew(nd))                         # R'*skew(nd)                      
+        wd = dot(RtrSnd,uDot)/norm(u)                               # wd = (R'*skew(nd)*uDot)/norm(u)
 
-    # ------------------ Yaw Control ---------------------#
-    
-    ky    = parameters.ky       # gain
-    psid = 0;                   # desired yaw
-    psidDot = 0;                # desired yaw-velocity
-    
-    # current euler angles
-    euler = GetEulerAngles(R);
-    phi   = euler[0]
-    theta = euler[1]
-    psi   = euler[2]
+        # partial derivative lyapunov function 
+        dV2 = dV2_dev(ep, ev)
 
-    #A = array([cos(psid), sin(phid)])
-    #B = array([cos(psi), sin(phi)])
-    #AB = norm(A-B)
-    #ephi = 2*arcsin(AB/2)
+        # angular velocity    
+        ks = self.parameters.ks
+        katt = self.parameters.katt
+        RtrSn = dot(transpose(R),skew(n)) 
+        w = wd - ks*norm(u)*dot(RtrSn,dV2) - katt*dot(RtrSnd,n)  # w = wd-ks*norm(u)*(R'*skew(n)*dV2)-katt*(R'*skew(nd)*n)
 
-    ephi = arctan2(sin(psi-psid), cos(psi-psid))    # yaw error
 
-    w[2] = psidDot - ky*ephi
+        # ------------------ "Yaw" Control ---------------------#
+        
+        ky = self.parameters.ky       # gain
+        psid = 0;                   # desired angle
+        psidDot = 0;                # desired angular-velocity
+        
+        # current euler angles
+        euler = GetEulerAnglesZYZ(R);
+        phi   = euler[0]
+        theta = euler[1]
+        psi   = euler[2]
 
-    # ------------------ Control Inputs Vector ------------------#
+        ephi = sin(psi-psid)    # angular error
 
-    U = zeros(4)
-    
-    U[0] = Thrust
-    U[1:4] = w
+        psiDot = psidDot - ky*ephi
+        w[2] =(cos(theta)*psiDot-sin(phi)*w[1])/cos(phi)
 
-    U = Cmd_Converter(U, parameters)
+        # ------------------ Control Inputs Vector ------------------#
 
-    return U
+        U = zeros(4)
+        
+        U[0] = Thrust
+        U[1:4] = w
 
+        U = Cmd_Converter(U, self.parameters)
 
-################################# BOUNDED INPUT ####################################################
+        return U
 
 
-# ------------------------------ Vectorial --------------------------------------------------------#
+    ################################# BOUNDED INPUT ####################################################
 
-def uBounded(ep, ev, parameters):
-    out   = zeros(3)
-    out[0] = uBounded_Scalar(ep[0], ev[0], parameters)
-    out[1] = uBounded_Scalar(ep[1], ev[1], parameters)
-    out[2] = uBounded_Scalar(ep[2], ev[2], parameters)
-    return out
 
-def uBoundedDot(ep, ev, ea, parameters):
-    out  = zeros(3)
-    out[0] = uBoundedDot_Scalar(ep[0], ev[0], ev[0], ea[0], parameters)
-    out[1] = uBoundedDot_Scalar(ep[1], ev[1], ev[1], ea[1], parameters)
-    out[2] = uBoundedDot_Scalar(ep[2], ev[2], ev[2], ea[2], parameters)
-    return out
+    # ------------------------------ Vectorial --------------------------------------------------------#
 
+    def uBounded(self, ep, ev):
+        out   = zeros(3)
+        out[0] = self.uBounded_Scalar(ep[0], ev[0])
+        out[1] = self.uBounded_Scalar(ep[1], ev[1])
+        out[2] = self.uBounded_Scalar(ep[2], ev[2])
+        return out
 
-# ------------------------------ Scalar --------------------------------------------------------#
+    def uBoundedDot(self, ep, ev, ea):
+        out  = zeros(3)
+        out[0] = self.uBoundedDot_Scalar(ep[0], ev[0], ev[0], ea[0])
+        out[1] = self.uBoundedDot_Scalar(ep[1], ev[1], ev[1], ea[1])
+        out[2] = self.uBoundedDot_Scalar(ep[2], ev[2], ev[2], ea[2])
+        return out
 
-def uBounded_Scalar(p, v, parameters):
 
-    kb = parameters.kb; 
-    #rospy.loginfo("dOmega=%s, Omega+sigma=%s" % (dOmega(v), Omega(v)+sigma(p)))
+    # ------------------------------ Scalar --------------------------------------------------------#
 
-    return -kb*(sigma(p)/dOmega(v))*(v+sigma(p))/(Omega(v)+sigma(p)) - v*dsigma(p)/dOmega(v) - rho(Omega(v)+sigma(p));
+    def uBounded_Scalar(self, p, v):
 
+        kb = self.parameters.kb 
+        #rospy.loginfo("dOmega=%s, Omega+sigma=%s" % (dOmega(v), Omega(v)+sigma(p)))
 
-def uBoundedDot_Scalar(p, v, pDot, vDot, parameters):
+        if abs(Omega(v)+sigma(p))<sys.float_info.epsilon:
+            illFrac = 1
+        else:
+            illFrac = (v+sigma(p))/(Omega(v)+sigma(p)) 
 
-    kb = parameters.kb; 
+        return - kb*(sigma(p)/dOmega(v))*illFrac - v*dsigma(p)/dOmega(v) - rho(Omega(v)+sigma(p))
 
-    dr = drho(Omega(v)+sigma(p))
 
-    Om = Omega(v)
-    dOm = dOmega(v)
-    ddOm = ddOmega(v)
+    def uBoundedDot_Scalar(self, p, v, pDot, vDot):
 
-    s = sigma(p)
-    ds = dsigma(p)
-    dds = ddsigma(p)
+        kb = self.parameters.kb
 
-    sOm = s + Om
-    sv = s + v
-    s2v = 2*s + v
+        Om = Omega(v)
+        dOm = dOmega(v)
+        ddOm = ddOmega(v)
 
-    num1 = dOm*(-kb*(s**2+s2v*Om)-sOm**2*dr*dOm)
-    num2 = -v*dds*sOm**2
-    den = dOm*sOm**2
-    DubDp =  (num1 + num2)/den
+        s = sigma(p)
+        ds = dsigma(p)
+        dds = ddsigma(p)
 
-    a1 = ds/(dOm**2)
-    b1 = v*ddOm-dOm
-    term1 = a1*b1
-    a2 = kb*s/(sOm*dOm)**2
-    b2 = sv*(sOm*ddOm + dOm**2) - sOm*dOm 
-    term2 = a2*b2
-    term3 = -dr*dOm
-    DubDv =  term1 + term2 + term3
+        dr = drho(Om+s)
 
-    return DubDp*pDot + DubDv*vDot
+        eps = sys.float_info.epsilon
 
+        if abs(Om+s)<eps:
+            illFrac1 = 1
+            illFrac2 = 0
+            illFrac3 = 1
+        else:
+            num1 = (s**2 + 2*s*Om + v*Om)
+            den1 = (Om+s)**2
+            illFrac1 = num1/den1
 
-##################################################################################################
+            num2 = (v+s)*dOm - (Om+s)
+            den2 = (Om+s)**2
+            illFrac2 = num2/den2
 
+            illFrac3 = (v+s)/(Om+s)
 
-def GetEulerAngles(R):
+        DubDp = -dr*ds - v*dds/dOm - kb*(ds/dOm)*illFrac1
+        DubDv =  -ds/dOm - dr*dOm + v*ds*ddOm/(dOm**2) + kb*s*(illFrac2 + illFrac3*ddOm/(dOm**2))
 
-    #phi   = atan2(R(3,2),R(3,3));
-    #theta = asin(-R(3,1));
-    #psi   = atan2(R(2,1),R(1,1));
+        return DubDp*pDot + DubDv*vDot
 
-    EULER = zeros(3)
 
-    sin_theta = -R[2,0]
-    sin_theta = bound(sin_theta,1,-1)
-    theta     = arcsin(sin_theta)
-    EULER[1]  = theta
 
-    sin_phi   = R[2,1]/c(theta)
-    sin_phi   = bound(sin_phi,1,-1)
-    cos_phi   = R[2,2]/c(theta)
-    cos_phi   = bound(cos_phi,1,-1)
-    phi       = arctan2(sin_phi,cos_phi)
-    EULER[0]  = phi
+    ################################ INTEGRAL ACTION #################################################
 
-    sin_psi   = R[1,0]/c(theta)
-    sin_psi   = bound(sin_psi,1,-1)
-    cos_psi   = R[0,0]/c(theta)
-    cos_psi   = bound(cos_psi,1,-1)
-    psi       = arctan2(sin_psi,cos_psi)
-    EULER[2]  = psi
+    # ------------------------------ Vectorial --------------------------------------------------------#
 
-    # EULER[0] = arctan2(bound(R[2,1],1,-1),bound(R[2,2],1,-1));
-    # EULER[1] = arcsin(-bound(R[2,0],1,-1));
-    # EULER[2] = arctan2(bound(R[1,0],1,-1),bound(R[0,0],1,-1));    
+    def dEstimate(self, ep, ev):
+        self.dEstimateCurrent = self.dEstimateCurrent + self.dEstimateDot(ep,ev)*(self.timeNew - self.timeOld)
+        self.timeOld = self.timeNew
+        return self.dEstimateCurrent
 
-    return EULER
+    def dEstimateDot(self, ep, ev):
+        out = zeros(3)
 
-def bound(x,maxmax,minmin):
-    return maximum(minmin,minimum(maxmax,x))
+        kix = self.parameters.kix
+        kiy = self.parameters.kiy
+        kiz = self.parameters.kiz
 
+        out[0] = kix*self.dEstimateDot_Scalar(ep[0], ev[0])     #x
+        out[1] = kiy*self.dEstimateDot_Scalar(ep[1], ev[1])     #y
+        out[2] = kiz*self.dEstimateDot_Scalar(ep[2], ev[2])     #z
 
-##################################### PWM INPUTS #######################################################
+        return out
 
+    # ------------------------------ Scalar --------------------------------------------------------#
 
-# Comand converter (from 1000 to 2000)
-def Cmd_Converter(U,parameters):
+    def dEstimateDot_Scalar(self, p, v):
+        return (Omega(v)+sigma(p))*dOmega(v)
 
-    T = U[0]
-    w = U[1:4]
 
-    # mass of vehicles (kg)
-    m = parameters.m
-    
-    # acceleration due to gravity (m/s^2)
-    g  = parameters.g
 
-    ACRO_RP_P = parameters.ACRO_RP_P;
-    
-    Max   = ACRO_RP_P*4500/100*pi/180;
-    # angular velocity comand between 1000 and 2000 PWM
-    U[1] =  1500 + w[0]*500/Max;
-    U[2] =  1500 - w[1]*500/Max;
-    U[3] =  1500 - w[2]*500/Max;
-    
+    ################################ MODEL WITH MANIPULATOR ###########################################
 
-    # REMARK: the throtle comes between 1000 and 2000 PWM
-    # conversion gain
-    Throttle_neutral = parameters.Throttle_neutral;
-    K_THROTLE = m*g/Throttle_neutral;
-    U[0] = T/K_THROTLE;
+    def refreshModel(self,states,states_d):
 
-    # rearrage to proper order
-    # [roll,pitch,throttle,yaw]
-    U_new = zeros(4)
-    U_new[0] = U[1]
-    U_new[1] = U[2]
-    U_new[2] = U[0]
-    U_new[3] = U[3]        
+        manipON = self.SwitchManipulator
+        
+        # ------------------------ Quad  -----------------------
 
-    return U_new
+        # quad mass 
+        massQuad = self.parameters.massQuad                 # 1.442 Kg 
 
+        # quad position and velocity
+        posQuad  = states[0:3] 
+        velQuad  = states[3:6]
+
+        # quad rotation matrix
+        R  = states[6:15]           # v{I}=R*v{Q}
+        R  = reshape(R,(3,3))
+
+        # ----------------- Manipulator  -----------------------
+
+        # manipulator mass
+        massManip = self.parameters.massManip               # 0.300 Kg 
+
+        # manipulator sizes
+        BODY_JOINT = 0.10   # 10cm
+        JOINT_CM = 0.05     # 5cm
+        CM_EEF = 0.12       # 12cm
+
+        # joint1 angle
+        gamma = states_d[15:16]        
+
+        # manipulator position
+        posManipFromBody = BODY_JOINT*array([0, 0, 1]) + JOINT_CM*array([cos(gamma), 0.005, sin(gamma)])
+        posManip = posQuad - R.dot(posManipFromBody)
+
+        # manipulator velocity
+        RDot = self.RotationMatrixDerivative.output(self.timeNew, R)
+        velManip = velQuad - RDot.dot(posManipFromBody)
+
+        # ----------------- Load -----------------------
+
+        massLoad = self.parameters.massLoad
+        massManip = massManip #+ massLoad                                # 0.100 Kg (?) 
+        posManip = posManip # ...
+
+        # ----------------- Global System-----------------------
+     
+        # global mass
+        m = massQuad + massManip*manipON 
+
+        # global position
+        p = posQuad - (massManip/m)*R.dot(posManipFromBody)*manipON     # = (posQuad*massQuad + posManip*massManip*manipON)/m 
+        
+        # global velocity
+        v = velQuad - (massManip/m)*RDot.dot(posManipFromBody)*manipON             # we don't know gammaDot, so we assume to keep 
+                                                                                    # the manipulator blocked...May God be with us!
+
+        # ----------------- REFRESH -----------------------    
+
+        self.parameters.m = m
+        states[0:3] = p
+        states[3:6] = v
+        
 
 ##################################################################################################
 ########################### LYAPUNOV DERIVATIVES #################################################
@@ -313,16 +339,16 @@ def Cmd_Converter(U,parameters):
 
 # ------------------------------ Vectorial --------------------------------------------------------#
 
-def dV2Backstepping(ep, ev):
+def dV2_dev(ep, ev):
     out = zeros(3)
-    out[0] = dVbBackstepping(ep[0], ev[0])
-    out[1] = dVbBackstepping(ep[1], ev[1])
-    out[2] = dVbBackstepping(ep[2], ev[2])
+    out[0] = dVb_dv(ep[0], ev[0])
+    out[1] = dVb_dv(ep[1], ev[1])
+    out[2] = dVb_dv(ep[2], ev[2])
     return out
 
 # ------------------------------ Scalar --------------------------------------------------------#
 
-def dVbBackstepping(p,v):
+def dVb_dv(p,v):
     return (Omega(v)+sigma(p))*dOmega(v)
 
 
@@ -378,4 +404,156 @@ def ddOmega(x):
         return (x - 1)
     else:
         return 0
+
+
+##################################################################################################
+########################### OTHER USED FUNCTIONS #################################################
+##################################################################################################
+
+#************************ INPUTS PWM CONVERTION ***************************#
+
+
+# Comand converter (from 1000 to 2000)
+def Cmd_Converter(U,parameters):
+
+    T = U[0]
+    w = U[1:4]
+    
+    # gravity 
+    g  = parameters.g
+
+    # mass
+    m = parameters.m
+
+    ACRO_RP_P = parameters.ACRO_RP_P;
+    
+    Max   = ACRO_RP_P*4500/100*pi/180;
+    # angular velocity comand between 1000 and 2000 PWM
+    U[1] =  1500 + w[0]*500/Max;
+    U[2] =  1500 - w[1]*500/Max;
+    U[3] =  1500 - w[2]*500/Max;
+
+    # REMARK: the throtle comes between 1000 and 2000 PWM
+    # conversion gain
+    Throttle_neutral = parameters.Throttle_neutral
+    K_THROTLE = m*g/Throttle_neutral;
+    U[0] = T/K_THROTLE;
+
+    # rearrage to proper order
+    # [roll,pitch,throttle,yaw]
+    U_new = zeros(4)
+    U_new[0] = U[1]
+    U_new[1] = U[2]
+    U_new[2] = U[0]
+    U_new[3] = U[3]        
+
+    return U_new
+
+#************************ EULERO ANGLES COMPUTATION ***************************#
+
+
+def GetEulerAnglesZYZ(R):
+
+    #phi   = atan2(R(3,2),R(3,3));
+    #theta = asin(-R(3,1));
+    #psi   = atan2(R(2,1),R(1,1));
+
+    EULER = zeros(3)
+
+    sin_theta = -R[2,0]
+    sin_theta = bound(sin_theta,1,-1)
+    theta     = arcsin(sin_theta)
+    EULER[1]  = theta
+
+    sin_phi   = R[2,1]/c(theta)
+    sin_phi   = bound(sin_phi,1,-1)
+    cos_phi   = R[2,2]/c(theta)
+    cos_phi   = bound(cos_phi,1,-1)
+    phi       = arctan2(sin_phi,cos_phi)
+    EULER[0]  = phi
+
+    sin_psi   = R[1,0]/c(theta)
+    sin_psi   = bound(sin_psi,1,-1)
+    cos_psi   = R[0,0]/c(theta)
+    cos_psi   = bound(cos_psi,1,-1)
+    psi       = arctan2(sin_psi,cos_psi)
+    EULER[2]  = psi
+
+    # EULER[0] = arctan2(bound(R[2,1],1,-1),bound(R[2,2],1,-1));
+    # EULER[1] = arcsin(-bound(R[2,0],1,-1));
+    # EULER[2] = arctan2(bound(R[1,0],1,-1),bound(R[0,0],1,-1));    
+
+    return EULER
+
+def bound(x,maxmax,minmin):
+    return maximum(minmin,minimum(maxmax,x))
+
+
+#************************ DERIVATIVE COMPUTATION ***************************#
+         
+
+class MatrixDerivative():
+    def __init__(self,N,XOld,timeOld):
+        self.MatrixFilter = MatrixFilter(N)
+        self.XOld = XOld
+        self.timeOld = timeOld
+
+    def output(self,timeNew, XNew):
+        dt = timeNew - self.timeOld
+        dX = XNew - self.XOld
+        dXdt =  dX/dt 
+        self.XOld = XNew
+        self.timeOld = timeNew
+        return self.MatrixFilter.output(dXdt)
+
+
+class MatrixFilter():
+    def __init__(self, N):
+        self.N = N
+        #1st col
+        self.Dxx =  MedianFilter(N)
+        self.Dyx =  MedianFilter(N)
+        self.Dzx =  MedianFilter(N)
+        #2nd col
+        self.Dxy =  MedianFilter(N)
+        self.Dyy =  MedianFilter(N)
+        self.Dzy =  MedianFilter(N)
+        #3rd col
+        self.Dxz =  MedianFilter(N)
+        self.Dyz =  MedianFilter(N)
+        self.Dzz =  MedianFilter(N)
+
+    def output(self,dataNew):
+        #1st col
+        DxxNew = self.Dxx.output(dataNew[0,0])
+        DyxNew = self.Dyx.output(dataNew[1,0])
+        DzxNew = self.Dzx.output(dataNew[2,0])
+        #2nd col
+        DxyNew = self.Dxy.output(dataNew[0,1])
+        DyyNew = self.Dyy.output(dataNew[1,1])
+        DzyNew = self.Dzy.output(dataNew[2,1])
+        #3rd col
+        DxzNew = self.Dxz.output(dataNew[0,2])
+        DyzNew = self.Dyz.output(dataNew[1,2])
+        DzzNew = self.Dzz.output(dataNew[2,2])
+
+        out = array([DxxNew,DyxNew,DzxNew,DxyNew,DyyNew,DzyNew,DxzNew,DyzNew,DzzNew])
+
+        return reshape(out,(3,3))
+
+class MedianFilter():
+    # N is order of median filter
+    def __init__(self, N):
+        self.N = N
+        self.data = numpy.zeros(N)
+    
+    def update(self,dataNew):
+        N = self.N
+        self.data[:-1] = self.data[1:]      # data{0:N-2} <- data{1:N-1}      we shift the array to left loosing the oldest element (i=0)
+        self.data[-1]  = dataNew           # data{N-1} <- new_data           replace the last element (i=N-1) with the newest
+                  
+    def output(self,dataNew):
+        self.update(dataNew)
+        out = numpy.median(self.data)       # middle value of a sorted copy of the vector "self.data" 
+        return out                          # (When N is even, it is the average of the two middle values)   
 
