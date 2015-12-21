@@ -34,7 +34,7 @@ from quad_control.msg import Controller_State
 # Mocap_Id for body detection from QUALISYS
 # StartSim stop simulator
 from quad_control.srv import Manipulator
-from quad_control.srv import ManipulatorTask
+from quad_control.srv import LoadSrv
 from quad_control.srv import *
 
 # when Mocap is used this is necessary
@@ -124,7 +124,8 @@ class quad_controller():
         self.VelocityEstimator = Velocity_Filter(3,numpy.zeros(3),0.0)
 
         # controller selected by default
-        Cler_class = controllers_dictionary[4]
+        self.flagCtrl = 4
+        Cler_class = controllers_dictionary[self.flagCtrl]
         self.controller = Cler_class()
 
 
@@ -262,9 +263,9 @@ class quad_controller():
     def handle_controller_select(self,req):
 
         # if GUI request certain controller, update flag on desired controller
-        fg_Cler = req.flag_controller
+        self.flagCtrl = req.flag_controller
 
-        rospy.logwarn(fg_Cler)
+        rospy.logwarn(self.flagCtrl)
 
         # some parameters user can change easily 
         # req.parameters is a tuple
@@ -276,7 +277,7 @@ class quad_controller():
             parameters = numpy.array(req.parameters)
 
         # update class for Controller
-        Cler_class = controllers_dictionary[fg_Cler]
+        Cler_class = controllers_dictionary[self.flagCtrl]
         # Cler_class = controllers_dictionary[2]
 
         self.controller = Cler_class(parameters)
@@ -495,40 +496,53 @@ class quad_controller():
     ################   MANIPULATOR   ##################
     ###################################################
 
-    # callback for when changing controller is requested
-    def handle_manip_task_select(self,req):
+    # # callback for when changing controller is requested
+    # def handle_manip_task_select(self,req):
 
-        # if GUI request certain task, update flag on desired task
-        fg_Task = req.flag_task
+    #     # if GUI request certain task, update flag on desired task
+    #     fg_Task = req.flag_task
 
-        rospy.logwarn(fg_Task)
+    #     rospy.logwarn(fg_Task)
 
-        # some parameters user can change easily 
-        # req.parameters is a tuple
-        if len(req.parameters) == 0:
-            # if tuple req.parameters is empty:
-            Manip_parameters = None
-        else:     
-            # if tuple is not empty, cast parameters as numpy array 
-            Manip_parameters = numpy.array(req.parameters)
+    #     # some parameters user can change easily 
+    #     # req.parameters is a tuple
+    #     if len(req.parameters) == 0:
+    #         # if tuple req.parameters is empty:
+    #         Manip_parameters = None
+    #     else:     
+    #         # if tuple is not empty, cast parameters as numpy array 
+    #         Manip_parameters = numpy.array(req.parameters)
 
-        # update class for Controller
-        Manip_class = manipulator_dictionary[fg_Task]
-        # Cler_class = controllers_dictionary[2]
+    #     # update class for Controller
+    #     Manip_class = manipulator_dictionary[fg_Task]
+    #     # Cler_class = controllers_dictionary[2]
 
-        self.manipulator = Manip_class(Manip_parameters)
+    #     self.manipulator = Manip_class(Manip_parameters)
 
-        # return message to Gui, to let it know resquest has been fulfilled
-        return ManipulatorTaskResponse(True)
+    #     # return message to Gui, to let it know resquest has been fulfilled
+    #     return ManipulatorTaskResponse(True)
 
 
+    # def callback_manipulator_pose(self, data):
+
+    #     self.joint1Angle = data.PositionJoint1
+    #     self.joint1 = self.maxJointPWM - (self.maxJointPWM-self.minJointPWM)/180*data.PositionJoint1
+
+    #     rospy.logwarn(self.joint1)
+
+    #     if data.CloseGripper == True:
+    #         self.gripper = self.maxGripperPWM
+    #     else:
+    #         self.gripper = self.minGripperPWM
+
+    #     return ManipulatorResponse(True) 
 
     def handle_manip_pose(self, req):
 
         self.joint1Angle = req.PositionJoint1
         self.joint1 = self.maxJointPWM - (self.maxJointPWM-self.minJointPWM)/180*req.PositionJoint1
 
-        rospy.logwarn(self.joint1)
+        #rospy.logwarn(self.joint1)
 
         if req.CloseGripper == True:
             self.gripper = self.maxGripperPWM
@@ -537,21 +551,13 @@ class quad_controller():
 
         return ManipulatorResponse(True)
 
-
-
-    def callback_manipulator_pose(self, data):
-
-        self.joint1Angle = data.PositionJoint1
-        self.joint1 = self.maxJointPWM - (self.maxJointPWM-self.minJointPWM)/180*data.PositionJoint1
-
-        rospy.logwarn(self.joint1)
-
-        if data.CloseGripper == True:
-            self.gripper = self.maxGripperPWM
+    def handle_load_settings(self, req):
+        if self.flagCtrl == 5:
+            self.controller.load(req.mass)
+            return LoadSrvResponse(True)
         else:
-            self.gripper = self.minGripperPWM
+            return LoadSrvResponse(False)
 
-        return ManipulatorResponse(True) 
 
 
     ###################################################
@@ -636,16 +642,19 @@ class quad_controller():
 
         
         #-----------------------------------------------------------------------#
-        #----------------------   MANIPULATOR   --------------------------------#
+        #----------------------   MANIPULATION  --------------------------------#
         #-----------------------------------------------------------------------#
         # Subscribe to topic for setting a pose for the manipulator
-        self.SubToManip = rospy.Subscriber("manipulator_pose", ManipulatorPose, self.callback_manipulator_pose) 
+        #self.SubToManip = rospy.Subscriber("manipulator_pose", ManipulatorPose, self.callback_manipulator_pose) 
 
         # Service for choosing the task for the manipulator 
-        manipulator_task_srv = rospy.Service('manipulator_task', ManipulatorTask, self.handle_manip_task_select)
+        # manipulator_task_srv = rospy.Service('manipulator_task', ManipulatorTask, self.handle_manip_task_select)
+
+        # Service is created, so that user can change le load parameters
+        Chg_Load = rospy.Service('change_load', LoadSrv, self.handle_load_settings)
 
         # Service for setting a pose for the manipulator 
-        manipulator_pose_srv = rospy.Service('manipulator_commands', Manipulator, self.handle_manip_pose)
+        manipulator_service = rospy.Service('manipulator_commands', Manipulator, self.handle_manip_pose)
         
         # ------------------------------------------------------------------------
 

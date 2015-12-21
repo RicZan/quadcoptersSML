@@ -17,6 +17,9 @@
     <param name="kp" value="1.4"/> 
     <param name="sigma_p" value="0.5"/> 
     <param name="sigma_v" value="0.5"/> 
+    
+    <!-- Manipulation planner --> 
+    <node pkg="quad_control" name="manipulation_Iris1" type="manipulation_task_planner.py"/>
 
     <!-- Simulator Node -->
     <node pkg="quad_control" name="Simulator_Iris1" type="Quad_Simulator.py"/>

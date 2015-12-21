@@ -50,6 +50,9 @@ class ControllerThrustOmega():
 
         self.RotationMatrixDerivative = MatrixDerivative(3,zeros((3,3)),0)
 
+    def load(self,massLoad):
+        self.parameters.massLoad = massLoad
+
 
     def output(self,t,states,states_d):
 
@@ -144,7 +147,7 @@ class ControllerThrustOmega():
         psidDot = 0;                # desired angular-velocity
         
         # current euler angles
-        euler = GetEulerAnglesZYZ(R);
+        euler = GetEulerAngles(R);
         phi   = euler[0]
         theta = euler[1]
         psi   = euler[2]
@@ -452,7 +455,7 @@ def Cmd_Converter(U,parameters):
 #************************ EULERO ANGLES COMPUTATION ***************************#
 
 
-def GetEulerAnglesZYZ(R):
+def GetEulerAngles(R):
 
     #phi   = atan2(R(3,2),R(3,3));
     #theta = asin(-R(3,1));

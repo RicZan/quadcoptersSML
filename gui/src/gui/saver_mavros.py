@@ -37,7 +37,7 @@ class saver_mavrosPlugin(Plugin):
 
         # it is either "" or the input given at creation of plugin
         self.namespace = self._parse_args(context.argv())
-
+        #rospy.logwarn('namespace[sarver_mavros] = '+self.namespace)
 
         super(saver_mavrosPlugin, self).__init__(context)
         # Give QObjects reasonable names
@@ -250,30 +250,23 @@ class saver_mavrosPlugin(Plugin):
 
     def Set_Manipulator_State(self,CLOSE_GRIPPER, JOINT1):
 
-        #Change the flight mode on the Pixhawk flight controller
         try:
-            # it waits for service for 2 seconds
-            rospy.logwarn('\n Waiting for service...')
-            rospy.wait_for_service(self.namespace + 'manipulator_commands', 1.0) 
+            rospy.wait_for_service(self.namespace + 'manipulator_commands', 2.0) 
+            rospy.logwarn('Setting MANIPULATOR...')
+            change_state = rospy.ServiceProxy(self.namespace + 'manipulator_commands', Manipulator)
+            manipulator_resp = change_state(CLOSE_GRIPPER, JOINT1)
 
-            try:
-                rospy.logwarn('Setting MANIPULATOR...')
-                change_state = rospy.ServiceProxy(self.namespace + 'manipulator_commands', Manipulator)
-                manipulator_resp = change_state(CLOSE_GRIPPER, JOINT1)
+            if manipulator_resp.success:
+               if CLOSE_GRIPPER == True:
+                   rospy.logwarn('gripper = CLOSE, joint = '+str(JOINT1))
+               else:
+                   rospy.logwarn('gripper = OPEN, joint = '+str(JOINT1))
+            else:
+                rospy.logwarn('Could not change Gripper configuration')
 
-                if manipulator_resp.success:
-                    if CLOSE_GRIPPER == True:
-                        rospy.logwarn('gripper = CLOSE, joint = '+JOINT1)
-                    else:
-                        rospy.logwarn('gripper = OPEN, joint = '+JOINT1)
-                else:
-                    rospy.logwarn('Could not change Gripper configuration')
+        except rospy.ServiceException:
+            rospy.logwarn('Failure: Service not available')
 
-            except:
-                rospy.logwarn('Failure: Service not available')
-
-        except:
-            rospy.logwarn('Failure: time out')
 
     #@Slot(bool)
     def StartSimulatorService(self):

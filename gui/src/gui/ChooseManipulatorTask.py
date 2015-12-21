@@ -13,7 +13,9 @@ import pyqtgraph as pg
 # from python_qt_binding.QtCore import pyqtSlot
 
 
+
 import numpy
+from numpy import *
 
 # import analysis
 # import utils
@@ -23,7 +25,8 @@ import subprocess
 
 # import services defined in quad_control
 # SERVICE BEING USED: Controller_srv
-from quad_control.srv import ManipulatorTask
+from quad_control.srv import TaskStart
+from quad_control.srv import Manipulator
 from quad_control.srv import *
 
 # import message of the type controller_state
@@ -40,8 +43,8 @@ class ChooseManipulatorTaskPlugin(Plugin):
     def __init__(self, context,namespace = None):
 
         # it is either "" or the input given at creation of plugin
-        self.namespace = self._parse_args(context.argv())
-
+        self.namespace = self._parse_args(context.argv())               # 'Iris1/' different to '/Iris1/'
+        #rospy.logwarn('namespace[ChooseManipulatorTask] = '+self.namespace)
 
         super(ChooseManipulatorTaskPlugin, self).__init__(context)
         # Give QObjects reasonable names
@@ -84,17 +87,13 @@ class ChooseManipulatorTaskPlugin(Plugin):
         # ---------------------------------------------- #
 
         # BUTTON TO SET DESIRED TASK
-        self._widget.SetTaskButton.clicked.connect(self.SetTask)
+        self._widget.StartTaskButton.clicked.connect(self.start)
 
         # BUTTON TO RESET
-        self._widget.resetButton.clicked.connect(self.RESET)
+        self._widget.ResetButton.clicked.connect(self.reset)
 
         # ------------------------------------------------------------------#
         # ------------------------------------------------------------------#
-
-        # Default values for buttons: 
-        self._widget.freq.setValue(1)
-
        
         # ---------------------------------------------- #
         # ---------------------------------------------- #
@@ -106,146 +105,38 @@ class ChooseManipulatorTaskPlugin(Plugin):
         # self._widget.GainsOption2.toggled.connect(self.DefaultOptions)
         # self._widget.GainsOption3.toggled.connect(self.DefaultOptions)
 
-    # def DefaultOptions(self):
 
-    #     if self._widget.GainsOption1.isChecked():
-    #         wn  = 1
-    #         xsi = numpy.sqrt(2)/2
-    #         ki  = 0.0
-
-    #         wn_z  = 1
-    #         xsi_z = numpy.sqrt(2)/2
-    #         ki_z  = 0.0
-
-    #         Throttle_neutral = 1400          
-
-
-    #     kv   = 2.0*xsi*wn
-    #     kp   = wn*wn
-
-    #     kv_z   = 2.0*xsi_z*wn_z
-    #     kp_z   = wn_z*wn_z
-
-
-    #     # Default values for buttons: PID Controller
-    #     self._widget.PgainXY_PID.setValue(kp)
-    #     self._widget.DgainXY_PID.setValue(kv)
-    #     self._widget.IgainXY_PID.setValue(ki)
-    #     self._widget.PgainZ_PID.setValue(kp_z)
-    #     self._widget.DgainZ_PID.setValue(kv_z)
-    #     self._widget.IgainZ_PID.setValue(ki_z)
-    #     self._widget.ThrottleNeutral_PID.setValue(Throttle_neutral)
-
-
-    def RESET(self):
-        # try: 
-        #     # time out of one second for waiting for service
-        #     rospy.wait_for_service(self.namespace+'manipulator_task',1.0)
-            
-        #     try:
-        #         ResettingTask = rospy.ServiceProxy(self.namespace+'manipulator_task', ManipulatorTask)
-
-        #         replyR = ResettingTask(0,None)
-
-        #         if replyR.received == True:
-        #             self._widget.Success.setChecked(True) 
-        #             self._widget.Failure.setChecked(False) 
-
-        #     except rospy.ServiceException:
-        #         self._widget.Success.setChecked(False) 
-        #         self._widget.Failure.setChecked(True) 
-            
-        # except:
-        #     self._widget.Success.setChecked(False) 
-        #     self._widget.Failure.setChecked(True)     
-            pass
-
+    def reset(self):  
+        pass
       
 
     #@Slot(bool)
-    def SetTask(self):
+    def start(self):
+
+        xA = self._widget.xA.value()
+        yA = self._widget.yA.value()
+        zA = self._widget.zA.value()
+        target_A = array([xA,yA,zA])
+
+        xB = self._widget.xB.value()
+        yB = self._widget.yB.value()
+        zB = self._widget.zB.value()
+        target_B = array([xB,yB,zB])
+
+        massLoad = self._widget.massLoad.value()
+        tollerance = self._widget.tollerance.value()
+        flyingAltitude = self._widget.flyingAltitude.value()
+
 
         try: 
-            # time out of one second for waiting for service
-            rospy.logwarn('\n Waiting for service...')
-            rospy.wait_for_service(self.namespace+'manipulator_task',2.0)
+            rospy.wait_for_service(self.namespace+'task_start',2.0)
+            serviceTask = rospy.ServiceProxy(self.namespace+'task_start', TaskStart)
+
+            serviceTask(self.namespace,target_A,massLoad,tollerance,flyingAltitude)
             
-            try:
-                rospy.logwarn('Setting TASK...')
-                SettingTask = rospy.ServiceProxy(self.namespace+'manipulator_task', ManipulatorTask)
+        except rospy.ROSException, rospy.ServiceException:
+            rospy.logwarn('task_start Failure')  
 
-                if self._widget.TaskSelect.currentIndex() == 1:
-                    taskIndex,parameters = self.OscillationParameters()
-
-#                if self._widget.TaskSelect.currentIndex() == 2:
-#                    taskIndex,parameters = self.ThrowParameters()
-
-                replyS = SettingTask(taskIndex,parameters)
-
-
-                if replyS.received == True:
-                    self._widget.Success.setChecked(True) 
-                    self._widget.Failure.setChecked(False) 
-                else:
-                    rospy.logwarn('Could not change manipulator task')
-
-            except rospy.ServiceException:
-                self._widget.Success.setChecked(False) 
-                self._widget.Failure.setChecked(True) 
-                rospy.logwarn('Failure: Service not available')
-            
-        except:
-            self._widget.Success.setChecked(False) 
-            self._widget.Failure.setChecked(True)    
-            rospy.logwarn('Failure: time out')  
-            pass     
-
-
-    def OscillationParameters(self):
-
-        taskIndex = 1
-        w = self._widget.freq.value()
-
-        parameters = numpy.array([w])
-        
-        rospy.logwarn('Manipulator parameters setted '+ w)
-
-        return taskIndex,parameters
-
-    
-    # def ReceiveControllerState(self,YesOrNo,parameter):
-        
-
-    #     try:
-
-    #         # time out of one second for waiting for service
-    #         rospy.wait_for_service(self.namespace+'Controller_State_GUI',1.0)
-
-    #         try:
-
-    #             AskForControllerState = rospy.ServiceProxy(self.namespace+'Controller_State_GUI', Controller_Srv)
-
-    #             reply = AskForControllerState(YesOrNo,parameter)
-
-    #             if reply.received == True:
-    #                 # if controller receives message, we know it
-    #                 self._widget.Success.setChecked(True) 
-    #                 self._widget.Failure.setChecked(False) 
-    #             else:
-    #                 # if controller does not receive message, we know it
-    #                 self._widget.Success.setChecked(False) 
-    #                 self._widget.Failure.setChecked(True) 
-
-    #         except rospy.ServiceException:
-    #             # print "Service call failed: %s"%e   
-    #             self._widget.Success.setChecked(False) 
-    #             self._widget.Failure.setChecked(True) 
-            
-    #     except: 
-    #         # print "Service not available ..."        
-    #         self._widget.Success.setChecked(False) 
-    #         self._widget.Failure.setChecked(True)
-    #         pass  
 
 
     def _parse_args(self, argv):

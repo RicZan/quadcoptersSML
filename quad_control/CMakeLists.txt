@@ -68,6 +68,8 @@ add_service_files(
   Simulator_Srv.srv
   MocapBodies.srv
   PlannerStart.srv
+  TaskStart.srv
+  LoadSrv.srv
   Manipulator.srv
   ManipulatorTask.srv
 )
