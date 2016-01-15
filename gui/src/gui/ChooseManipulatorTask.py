@@ -132,7 +132,7 @@ class ChooseManipulatorTaskPlugin(Plugin):
             rospy.wait_for_service(self.namespace+'task_start',2.0)
             serviceTask = rospy.ServiceProxy(self.namespace+'task_start', TaskStart)
 
-            serviceTask(self.namespace,target_A,massLoad,tollerance,flyingAltitude)
+            serviceTask(self.namespace,target_A,target_B,massLoad,tollerance,flyingAltitude)
             
         except rospy.ROSException, rospy.ServiceException:
             rospy.logwarn('task_start Failure')  

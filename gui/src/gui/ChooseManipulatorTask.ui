@@ -75,6 +75,9 @@
           <height>27</height>
          </rect>
         </property>
+        <property name="minimum">
+         <double>-99.000000000000000</double>
+        </property>
         <property name="value">
          <double>1.000000000000000</double>
         </property>
@@ -87,6 +90,9 @@
           <width>69</width>
           <height>27</height>
          </rect>
+        </property>
+        <property name="minimum">
+         <double>-99.000000000000000</double>
         </property>
         <property name="value">
          <double>1.000000000000000</double>
@@ -127,6 +133,9 @@
           <height>27</height>
          </rect>
         </property>
+        <property name="minimum">
+         <double>-99.000000000000000</double>
+        </property>
         <property name="value">
          <double>1.000000000000000</double>
         </property>
@@ -166,6 +175,9 @@
           <height>27</height>
          </rect>
         </property>
+        <property name="minimum">
+         <double>-99.000000000000000</double>
+        </property>
         <property name="value">
          <double>2.000000000000000</double>
         </property>
@@ -178,6 +190,9 @@
           <width>69</width>
           <height>27</height>
          </rect>
+        </property>
+        <property name="minimum">
+         <double>-99.000000000000000</double>
         </property>
         <property name="value">
          <double>2.000000000000000</double>
@@ -217,6 +232,9 @@
           <width>69</width>
           <height>27</height>
          </rect>
+        </property>
+        <property name="minimum">
+         <double>-99.000000000000000</double>
         </property>
         <property name="value">
          <double>1.000000000000000</double>
