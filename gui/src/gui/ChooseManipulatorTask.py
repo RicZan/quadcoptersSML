@@ -26,6 +26,7 @@ import subprocess
 # import services defined in quad_control
 # SERVICE BEING USED: Controller_srv
 from quad_control.srv import TaskStart
+from quad_control.srv import TaskStop
 from quad_control.srv import Manipulator
 from quad_control.srv import *
 
@@ -62,8 +63,6 @@ class ChooseManipulatorTaskPlugin(Plugin):
             print 'arguments: ', args
             print 'unknowns: ', unknowns
         
-        
-        
         # Create QWidget
         self._widget = QWidget()
         # Get path to UI file which is a sibling of this file
@@ -83,8 +82,7 @@ class ChooseManipulatorTaskPlugin(Plugin):
         # Add widget to the user interface
         context.add_widget(self._widget)
 
-        # ---------------------------------------------- #
-        # ---------------------------------------------- #
+        #################################  BUTTONs  ##############################################
 
         # BUTTON TO SET DESIRED TASK
         self._widget.StartTaskButton.clicked.connect(self.start)
@@ -92,11 +90,6 @@ class ChooseManipulatorTaskPlugin(Plugin):
         # BUTTON TO RESET
         self._widget.ResetButton.clicked.connect(self.reset)
 
-        # ------------------------------------------------------------------#
-        # ------------------------------------------------------------------#
-       
-        # ---------------------------------------------- #
-        # ---------------------------------------------- #
         # initial time: this will be used to offset to time to 0 
         # instead of plotting with "real" time
         self.time0 = rospy.get_time()
@@ -105,9 +98,30 @@ class ChooseManipulatorTaskPlugin(Plugin):
         # self._widget.GainsOption2.toggled.connect(self.DefaultOptions)
         # self._widget.GainsOption3.toggled.connect(self.DefaultOptions)
 
+        # ************************* QUALISYS *****************************
 
-    def reset(self):  
-        pass
+        # BUTTON TO CONNECT TO QUALISYS
+        self._widget.Qualisys.stateChanged.connect(self.QualisysConnect)
+        self._widget.QualisysTarget.stateChanged.connect(self.QualisysConnectTarget)
+
+        # BUTTON TO CHANGE ID
+        self._widget.changeID.clicked.connect(self.changeID)
+        self._widget.changeIDTarget.clicked.connect(self.changeIDTarget)
+
+        # Default Value for Id of Quad (as in QUALISYS computer)
+        self.set_up_body_list()
+        self.set_up_body_list_target()
+
+
+    def reset(self): 
+        try: 
+            rospy.wait_for_service(self.namespace+'task_stop',2.0)
+            serviceStop = rospy.ServiceProxy(self.namespace+'task_stop', TaskStop)
+
+            serviceStop()
+            
+        except rospy.ROSException, rospy.ServiceException:
+            rospy.logwarn('task_stop Failure') 
       
 
     #@Slot(bool)
@@ -171,5 +185,255 @@ class ChooseManipulatorTaskPlugin(Plugin):
         # This will enable a setting button (gear icon) in each dock widget title bar
         # Usually used to open a modal configuration dialog
 
-    
 
+
+##################################################################################################
+####################################### QUALISYS #################################################
+##################################################################################################
+
+
+
+ # ***************************************** load *****************************************************
+
+    def set_up_body_list(self):
+        # try to obtain list of available mocap bodies
+        try:
+            rospy.wait_for_service(self.namespace+'MocapBodies', 1.)
+            req_bodies = rospy.ServiceProxy(self.namespace+'MocapBodies', MocapBodies)
+            bodies = req_bodies().bodies
+        except:
+            bodies = range(0,100)
+
+        preferred_index = self._widget.MocapID.currentText()
+
+        # clear existing entries
+        # this may trigger the following bug in QT:
+        # https://bugreports.qt.io/browse/QTBUG-13925
+        self._widget.MocapID.clear()
+        # convert bodies to string list and add as list to entries
+        self._widget.MocapID.insertItems(0, map(str, bodies))
+
+        # try to set new index so the value does not change
+        try:
+            new_index = bodies.index(int(preferred_index))
+            self._widget.MocapID.setCurrentIndex(new_index)
+        except:
+            pass
+    
+    #@Slot(bool)
+    def QualisysConnect(self):
+        
+        try: 
+            # time out of one second for waiting for service
+            rospy.wait_for_service(self.namespace+'Mocap_Set_Id_Load',1.0)
+            
+            try:
+                AskMocap = rospy.ServiceProxy(self.namespace+'Mocap_Set_Id_Load', Mocap_Id)
+
+                if self._widget.Qualisys.isChecked() == True:
+                    reply = AskMocap(True,int(self._widget.MocapID.currentText()),True)
+
+                    if reply.success == True:
+                        # if controller receives message, we know it
+                        self._widget.QualisysSuccess.setChecked(True) 
+                        self._widget.QualisysFailure.setChecked(False) 
+                    if reply.exists == True:
+                        self._widget.Exists.setChecked(True)
+                        self._widget.ExistsNot.setChecked(False)
+                    else:
+                        self._widget.Exists.setChecked(False)
+                        self._widget.ExistsNot.setChecked(True)
+                else:
+                    reply = AskMocap(False,int(self._widget.MocapID.currentText()),True)
+                    
+                    if reply.success == True:
+                        # if controller receives message, we know it
+                        self._widget.QualisysSuccess.setChecked(True) 
+                        self._widget.QualisysFailure.setChecked(False) 
+
+                    self._widget.Exists.setChecked(False)
+                    self._widget.ExistsNot.setChecked(False)
+
+
+            except rospy.ServiceException:
+                # print "Service call failed: %s"%e   
+                self._widget.QualisysSuccess.setChecked(False) 
+                self._widget.QualisysFailure.setChecked(True) 
+                self._widget.Exists.setChecked(False)
+                self._widget.ExistsNot.setChecked(False)
+            
+        except: 
+            # print "Service not available ..."        
+            self._widget.QualisysSuccess.setChecked(False) 
+            self._widget.QualisysFailure.setChecked(True)
+            self._widget.Exists.setChecked(False)
+            self._widget.ExistsNot.setChecked(False)            
+            pass
+
+        # initialize list of available bodies
+        self.set_up_body_list()
+
+
+    #@Slot(bool)
+    def changeID(self):
+        
+        try: 
+            # time out of one second for waiting for service
+            rospy.wait_for_service(self.namespace+'Mocap_Set_Id_Load',1.0)
+            
+            try:
+                AskMocap = rospy.ServiceProxy(self.namespace+'Mocap_Set_Id_Load', Mocap_Id)
+
+                if self._widget.Qualisys.isChecked() == True:
+                    reply = AskMocap(True,int(self._widget.MocapID.currentText()),True)
+                    print(reply)
+                    if reply.success == True:
+                        # if controller receives message, we know it
+                        self._widget.QualisysSuccess.setChecked(True) 
+                        self._widget.QualisysFailure.setChecked(False)
+
+                    if reply.exists == True:
+                        self._widget.Exists.setChecked(True)
+                        self._widget.ExistsNot.setChecked(False)
+                    else:
+                        self._widget.Exists.setChecked(False)
+                        self._widget.ExistsNot.setChecked(True)
+
+            except rospy.ServiceException:
+                # print "Service call failed: %s"%e   
+                self._widget.QualisysSuccess.setChecked(False) 
+                self._widget.QualisysFailure.setChecked(True) 
+                self._widget.Exists.setChecked(False)
+                self._widget.ExistsNot.setChecked(False)
+            
+        except: 
+            # print "Service not available ..."        
+            self._widget.QualisysSuccess.setChecked(False) 
+            self._widget.QualisysFailure.setChecked(True)
+            self._widget.Exists.setChecked(False)
+            self._widget.ExistsNot.setChecked(False)            
+            pass
+
+
+ # ***************************************** target *****************************************************
+
+
+    def set_up_body_list_target(self):
+        # try to obtain list of available mocap bodies
+        try:
+            rospy.wait_for_service(self.namespace+'MocapBodies', 1.)
+            req_bodies = rospy.ServiceProxy(self.namespace+'MocapBodies', MocapBodies)
+            bodies = req_bodies().bodies
+        except:
+            bodies = range(0,100)
+
+        preferred_index = self._widget.MocapIDTarget.currentText()
+
+        # clear existing entries
+        # this may trigger the following bug in QT:
+        # https://bugreports.qt.io/browse/QTBUG-13925
+        self._widget.MocapIDTarget.clear()
+        # convert bodies to string list and add as list to entries
+        self._widget.MocapIDTarget.insertItems(0, map(str, bodies))
+
+        # try to set new index so the value does not change
+        try:
+            new_index = bodies.index(int(preferred_index))
+            self._widget.MocapIDTarget.setCurrentIndex(new_index)
+        except:
+            pass
+
+  
+    #@Slot(bool)
+    def QualisysConnectTarget(self):
+        
+        try: 
+            # time out of one second for waiting for service
+            rospy.wait_for_service(self.namespace+'Mocap_Set_Id_Target',1.0)
+            
+            try:
+                AskMocap = rospy.ServiceProxy(self.namespace+'Mocap_Set_Id_Target', Mocap_Id)
+
+                if self._widget.QualisysTarget.isChecked() == True:
+                    reply = AskMocap(True,int(self._widget.MocapIDTarget.currentText()),True)
+
+                    if reply.success == True:
+                        # if controller receives message, we know it
+                        self._widget.QualisysSuccessTarget.setChecked(True) 
+                        self._widget.QualisysFailureTarget.setChecked(False) 
+                    if reply.exists == True:
+                        self._widget.ExistsTarget.setChecked(True)
+                        self._widget.ExistsNotTarget.setChecked(False)
+                    else:
+                        self._widget.ExistsTarget.setChecked(False)
+                        self._widget.ExistsNotTarget.setChecked(True)
+                else:
+                    reply = AskMocap(False,int(self._widget.MocapIDTarget.currentText()),True)
+                    
+                    if reply.success == True:
+                        # if controller receives message, we know it
+                        self._widget.QualisysSuccessTarget.setChecked(True) 
+                        self._widget.QualisysFailureTarget.setChecked(False) 
+
+                    self._widget.ExistsTarget.setChecked(False)
+                    self._widget.ExistsNotTarget.setChecked(False)
+
+
+            except rospy.ServiceException:
+                # print "Service call failed: %s"%e   
+                self._widget.QualisysSuccessTarget.setChecked(False) 
+                self._widget.QualisysFailureTarget.setChecked(True) 
+                self._widget.ExistsTarget.setChecked(False)
+                self._widget.ExistsNotTarget.setChecked(False)
+            
+        except: 
+            # print "Service not available ..."        
+            self._widget.QualisysSuccessTarget.setChecked(False) 
+            self._widget.QualisysFailureTarget.setChecked(True)
+            self._widget.ExistsTarget.setChecked(False)
+            self._widget.ExistsNotTarget.setChecked(False)            
+            pass
+
+        # initialize list of available bodies
+        self.set_up_body_list()
+
+
+    #@Slot(bool)
+    def changeIDTarget(self):
+        
+        try: 
+            # time out of one second for waiting for service
+            rospy.wait_for_service(self.namespace+'Mocap_Set_Id_Target',1.0)
+            
+            try:
+                AskMocap = rospy.ServiceProxy(self.namespace+'Mocap_Set_Id_Target', Mocap_Id)
+
+                if self._widget.QualisysTarget.isChecked() == True:
+                    reply = AskMocap(True,int(self._widget.MocapIDTarget.currentText()),True)
+                    print(reply)
+                    if reply.success == True:
+                        # if controller receives message, we know it
+                        self._widget.QualisysSuccessTarget.setChecked(True) 
+                        self._widget.QualisysFailureTarget.setChecked(False)
+
+                    if reply.exists == True:
+                        self._widget.ExistsTarget.setChecked(True)
+                        self._widget.ExistsNotTarget.setChecked(False)
+                    else:
+                        self._widget.ExistsTarget.setChecked(False)
+                        self._widget.ExistsNotTarget.setChecked(True)
+
+            except rospy.ServiceException:
+                # print "Service call failed: %s"%e   
+                self._widget.QualisysSuccessTarget.setChecked(False) 
+                self._widget.QualisysFailureTarget.setChecked(True) 
+                self._widget.ExistsTarget.setChecked(False)
+                self._widget.ExistsNotTarget.setChecked(False)
+            
+        except: 
+            # print "Service not available ..."        
+            self._widget.QualisysSuccessTarget.setChecked(False) 
+            self._widget.QualisysFailureTarget.setChecked(True)
+            self._widget.ExistsTarget.setChecked(False)
+            self._widget.ExistsNotTarget.setChecked(False)            
+            pass

@@ -23,11 +23,13 @@ import subprocess
 
 # import services defined in quad_control
 # SERVICE BEING USED: Controller_srv
+from quad_control.srv import LoadSrv
 from quad_control.srv import *
 
 # import message of the type controller_state
 # because this gui will be able to display the state of the controller
 from quad_control.msg import Controller_State
+from quad_control.msg import quad_cmd
 
 
 import argparse
@@ -111,6 +113,13 @@ class ChooseControllerPlugin(Plugin):
 
         Throttle_neutral = rospy.get_param("Throttle_neutral_ctr",1484.0)
 
+        self.subscriberQuadCmd = rospy.Subscriber(self.namespace+'quad_cmd', quad_cmd, self.callback_throttle)
+
+        self.currentThrottle = Throttle_neutral
+        self.neutralThrottle = Throttle_neutral
+
+        self._widget.neutralThrottleButton.clicked.connect(self.resetNeutralThrottle)
+
 
         # ------------------------------------------------------------------#
         # ------------------------------------------------------------------#
@@ -193,6 +202,15 @@ class ChooseControllerPlugin(Plugin):
         self._widget.GainsOption1.toggled.connect(self.DefaultOptions)
         self._widget.GainsOption2.toggled.connect(self.DefaultOptions)
         self._widget.GainsOption3.toggled.connect(self.DefaultOptions)
+
+        self._widget.Load.stateChanged.connect(self.changeLoad)
+
+    def callback_throttle(self,data):
+        self.currentThrottle = data.cmd_3
+
+    def resetNeutralThrottle(self):
+        self.neutralThrottle = self.currentThrottle
+        rospy.logwarn('Neutral Throttle = '+ str(self.neutralThrottle))
 
     def DefaultOptions(self):
 
@@ -418,6 +436,8 @@ class ChooseControllerPlugin(Plugin):
         kix = self._widget.IntegralGainX.value()
         kiy = self._widget.IntegralGainY.value()
         kiz = self._widget.IntegralGainZ.value()
+        sigmaMax = self._widget.sigmaMax.value()
+
 
         # saturation limits
         #sat = self._widget.SaturationGain.value()
@@ -431,10 +451,27 @@ class ChooseControllerPlugin(Plugin):
         SWTCHmanip = self._widget.SWTCHmanip.isChecked()
         rospy.logwarn(['Manipulator Attached: ', SWTCHmanip])
 
-        parameters = numpy.array([ks,katt,kb,ky,kix,kiy,kiz,time,SWTCHint,SWTCHmanip])  #,flagIntegral
+        parameters = numpy.array([ks,katt,kb,ky,kix,kiy,kiz,time,SWTCHint,SWTCHmanip,sigmaMax,self.neutralThrottle])  
 
         return controller,parameters
 
+    def changeLoad(self):
+
+        massLoad = self._widget.massLoad.value()
+
+        try:
+            # it waits for service for 2 seconds
+            rospy.wait_for_service(self.namespace+'change_load', 1.0) 
+            change_load = rospy.ServiceProxy(self.namespace+'change_load', LoadSrv)
+            loadSrvResponce = change_load(massLoad)
+
+            if loadSrvResponce.success:
+                rospy.logwarn('Load mass = '+ str(massLoad))
+            else:
+                rospy.logwarn('Could not change load parameters')
+
+        except rospy.ROSException, rospy.ServiceException:
+                rospy.logwarn('change_load Failure: Service not available')
 
     #@Slot(bool)
     def ReceiveControllerState(self,YesOrNo,parameter):

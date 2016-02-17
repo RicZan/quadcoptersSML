@@ -1,0 +1,8 @@
+string namespace
+float64[3] targetA
+float64[3] targetB
+float64 massLoad
+float64 tolleranceGripper
+float64 flyingAltitude
+---
+

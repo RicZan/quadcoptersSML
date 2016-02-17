@@ -55,6 +55,7 @@ add_message_files(
    Controller_State.msg
    ManipulatorPose.msg
    Num.msg
+   load_state.msg
 )
 
 # Generate services in the 'srv' folder
@@ -69,6 +70,7 @@ add_service_files(
   MocapBodies.srv
   PlannerStart.srv
   TaskStart.srv
+  TaskStop.srv
   LoadSrv.srv
   Manipulator.srv
   ManipulatorTask.srv

@@ -21,6 +21,9 @@ from quad_control.msg import quad_state_and_cmd
 # it subscribes to a message of this tupe
 from quad_control.msg import quad_state
 
+# position of the load
+from quad_control.msg import load_state
+
 # node will publish message quad_cmd that contains commands to simulator
 from quad_control.msg import quad_cmd
 
@@ -76,6 +79,8 @@ from Trajectory0 import traj_des_still
 trajectories_dictionary[0] = traj_des_still
 from Trajectory1 import traj_des_circle
 trajectories_dictionary[1] = traj_des_circle
+from Trajectory2 import traj_des_trapez_vertical
+trajectories_dictionary[2] = traj_des_trapez_vertical
 
 #-------------------------------------------------------#
 
@@ -142,6 +147,8 @@ class quad_controller():
         self.joint1 = self.minJointPWM
         self.gripper = self.minGripperPWM
 
+        self.posLoad = numpy.zeros(3)
+
     def GET_STATE_(self):
 
         # if simulator is on, state is updated by subscription
@@ -198,6 +205,24 @@ class quad_controller():
         # collect all components of state
         self.state_quad = numpy.concatenate([p,v,ee])  
 
+
+    # callback when simulator publishes states
+    def get_posLoad(self, data):
+
+        # position
+        self.posLoad = data.posLoad
+
+        # velocity
+        #v = numpy.array([data.vx,data.vy,data.vz])
+        # velLoad = self.VelocityEstimator.out(p,rospy.get_time())
+
+        # attitude: euler angles
+        # ee = numpy.array([data.roll,data.pitch,data.yaw])
+
+        # collect all components of state
+        # self.load_state = numpy.concatenate([p,v,ee])  
+
+
     # for obtaining current desired state
     def traj_des(self):
 
@@ -219,7 +244,7 @@ class quad_controller():
             ns = ns.replace("/", "")
 
             # string for time: used for generating files
-            tt = str(int(rospy.get_time() - self.TimeSaveData))
+            tt = str(int(rospy.get_time()))     #  - self.TimeSaveData
 
             # determine ROS workspace directory
             rp = RosPack()
@@ -604,6 +629,8 @@ class quad_controller():
         # this can come from QUALISYS, a sensor, or the simulator
         self.SubToSim = rospy.Subscriber("quad_state", quad_state, self.get_state) 
 
+        self.SubToLoad = rospy.Subscriber("load_state", load_state, self.get_posLoad) 
+
 
         # flag for MOCAP is initialized as FALSE
         # flag for wheter Mocap is being used or not
@@ -615,6 +642,7 @@ class quad_controller():
 
         # Service for providing list of available mocap bodies to GUI
         mocap_available_bodies = rospy.Service('MocapBodies', MocapBodies, self.handle_available_bodies)
+
 
 
         #-----------------------------------------------------------------------#
@@ -644,11 +672,6 @@ class quad_controller():
         #-----------------------------------------------------------------------#
         #----------------------   MANIPULATION  --------------------------------#
         #-----------------------------------------------------------------------#
-        # Subscribe to topic for setting a pose for the manipulator
-        #self.SubToManip = rospy.Subscriber("manipulator_pose", ManipulatorPose, self.callback_manipulator_pose) 
-
-        # Service for choosing the task for the manipulator 
-        # manipulator_task_srv = rospy.Service('manipulator_task', ManipulatorTask, self.handle_manip_task_select)
 
         # Service is created, so that user can change le load parameters
         Chg_Load = rospy.Service('change_load', LoadSrv, self.handle_load_settings)
@@ -658,7 +681,6 @@ class quad_controller():
         
         # ------------------------------------------------------------------------
 
-        # rc_override = rospy.Publisher('mavros/rc/override',OverrideRCIn,queue_size=10)
         rc_override = rospy.Publisher('mavros/rc/override', OverrideRCIn, queue_size=100)
 
         pub = rospy.Publisher('mavros/rc/override', OverrideRCIn, queue_size=100)
@@ -680,13 +702,17 @@ class quad_controller():
             states_d = self.traj_des()
             states_d1 = concatenate((states_d,array([self.joint1Angle])))
 
-            # # compute input to send to Manipulator ####################################
-            # Input_to_Manip = self.manipulator.output(time)
-            # gr = Input_to_Manip[0]
-            # j1 = Input_to_Manip[1]
 
             # compute input to send to QUAD
             Input_to_Quad = self.controller.output(time,self.state_quad,states_d1)
+
+            if self.flagCtrl == 5:
+                posCM_toSave = self.controller.getPosCM()
+                dEst_toSave = self.controller.getdEst()
+            else:
+                statesQuad = self.state_quad
+                posCM_toSave = statesQuad[0:3]
+                dEst_toSave = numpy.zeros(3)
             
             # Publish commands to Quad
             self.PublishToQuad(Input_to_Quad)
@@ -711,7 +737,7 @@ class quad_controller():
 
             if self.SaveDataFlag == True:
                 # if we want to save data
-                numpy.savetxt(self.file_handle, [concatenate([[rospy.get_time()],[self.flag_measurements], self.state_quad, states_d[0:9], Input_to_Quad,self.controller.d_est])],delimiter=' ')                    
+                numpy.savetxt(self.file_handle, [concatenate([[rospy.get_time()],[self.flag_measurements], self.state_quad, states_d[0:9], Input_to_Quad, posCM_toSave, dEst_toSave, self.posLoad])],delimiter=' ')                    
 
             # go to sleep
             rate.sleep()    

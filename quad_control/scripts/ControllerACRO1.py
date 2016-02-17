@@ -38,6 +38,8 @@ class ControllerThrustOmega():
             self.parameters.kix  = parameters[4]
             self.parameters.kiy  = parameters[5]
             self.parameters.kiz  = parameters[6]
+            global sigmaMax  
+            sigmaMax = parameters[10]
         
         self.timeNew  = parameters[7]
         self.timeOld  = self.timeNew
@@ -46,13 +48,22 @@ class ControllerThrustOmega():
         self.dEstimateCurrent = 0
 
         self.SwitchManipulator  = parameters[9]
-        #self.loadMass = parameters[10]
 
         self.RotationMatrixDerivative = MatrixDerivative(3,zeros((3,3)),0)
+
+        self.posCM = array([0,0,0])
+
+        self.parameters.Throttle_neutral = parameters[11] 
+
 
     def load(self,massLoad):
         self.parameters.massLoad = massLoad
 
+    def getPosCM(self):
+        return self.posCM
+
+    def getdEst(self):
+        return self.dEstimateCurrent
 
     def output(self,t,states,states_d):
 
@@ -78,14 +89,15 @@ class ControllerThrustOmega():
 
         # ****************** PARAMETERS ************************#
 
-        self.refreshModel(states,states_d)
+        statesNew = self.refreshModel(states,states_d)
+        self.posCM = statesNew[0:3] 
 
         # mass (kg)
         m = self.parameters.m 
         
         # quad position and velocity
-        p  = states[0:3] 
-        v  = states[3:6]
+        p  = statesNew[0:3] 
+        v  = statesNew[3:6]
 
         # normal unit vector
         R  = states[6:15]           # v{I}=R*v{Q}
@@ -143,7 +155,7 @@ class ControllerThrustOmega():
         # ------------------ "Yaw" Control ---------------------#
         
         ky = self.parameters.ky       # gain
-        psid = 0;                   # desired angle
+        psid = pi/2;                   # desired angle
         psidDot = 0;                # desired angular-velocity
         
         # current euler angles
@@ -296,45 +308,93 @@ class ControllerThrustOmega():
         massManip = self.parameters.massManip               # 0.300 Kg 
 
         # manipulator sizes
-        BODY_JOINT = 0.10   # 10cm
+        BODY_JOINT = 0.07   # 10cm
         JOINT_CM = 0.05     # 5cm
-        CM_EEF = 0.12       # 12cm
+        CM_EEF = 0.12      # 12cm
 
         # joint1 angle
         gamma = states_d[15:16]        
 
         # manipulator position
-        posManipFromBody = BODY_JOINT*array([0, 0, 1]) + JOINT_CM*array([cos(gamma), 0.005, sin(gamma)])
-        posManip = posQuad - R.dot(posManipFromBody)
+        posManipFromBody = BODY_JOINT*array([0, 0, 1]) + JOINT_CM*array([cos(gamma), 0.01, sin(gamma)])
+        #posManip = posQuad - R.dot(posManipFromBody)
 
         # manipulator velocity
         RDot = self.RotationMatrixDerivative.output(self.timeNew, R)
-        velManip = velQuad - RDot.dot(posManipFromBody)
+        #velManip = velQuad - RDot.dot(posManipFromBody)
 
         # ----------------- Load -----------------------
 
         massLoad = self.parameters.massLoad
-        massManip = massManip #+ massLoad                                # 0.100 Kg (?) 
-        posManip = posManip # ...
+        posLoadFromBody = BODY_JOINT*array([0, 0, 1]) + (JOINT_CM+CM_EEF)*array([cos(gamma), 0.01, sin(gamma)])
 
         # ----------------- Global System-----------------------
      
         # global mass
-        m = massQuad + massManip*manipON 
+        m = massQuad + (massManip + massLoad)*manipON 
 
         # global position
-        p = posQuad - (massManip/m)*R.dot(posManipFromBody)*manipON     # = (posQuad*massQuad + posManip*massManip*manipON)/m 
+        p = posQuad - (massManip/m)*R.dot(posManipFromBody)*manipON - (massLoad/m)*R.dot(posLoadFromBody)*manipON     # = (posQuad*massQuad + posManip*massManip*manipON)/m 
         
         # global velocity
-        v = velQuad - (massManip/m)*RDot.dot(posManipFromBody)*manipON             # we don't know gammaDot, so we assume to keep 
+        v = velQuad - (massManip/m)*RDot.dot(posManipFromBody)*manipON - (massLoad/m)*RDot.dot(posLoadFromBody)*manipON            # we don't know gammaDot, so we assume to keep 
                                                                                     # the manipulator blocked...May God be with us!
 
         # ----------------- REFRESH -----------------------    
 
         self.parameters.m = m
-        states[0:3] = p
-        states[3:6] = v
+
+        return concatenate([p,v]) 
+
+    ################################ MODEL WITH THE BAR ###########################################
+
+    # def refreshModel1(self,states,states_d):
+
+    #     manipON = 1
         
+    #     # ------------------------ Quad  -----------------------
+
+    #     # quad mass 
+    #     massQuad = self.parameters.massQuad                 # 1.442 Kg 
+
+    #     # quad position and velocity
+    #     posQuad  = states[0:3] 
+    #     velQuad  = states[3:6]
+
+    #     # quad rotation matrix
+    #     R  = states[6:15]           # v{I}=R*v{Q}
+    #     R  = reshape(R,(3,3))
+
+    #     # ----------------- Manipulator  -----------------------
+
+    #     # manipulator mass
+    #     massManip = 0.290               # 0.300 Kg 
+ 
+    #     # manipulator position
+    #     posManipFromBody = array([0, 0, 0.32])
+    #     #posManip = posQuad - R.dot(posManipFromBody)
+
+    #     # manipulator velocity
+    #     RDot = self.RotationMatrixDerivative.output(self.timeNew, R)
+    #     #velManip = velQuad - RDot.dot(posManipFromBody)
+
+    #     # ----------------- Global System-----------------------
+     
+    #     # global mass
+    #     m = massQuad + massManip
+
+    #     # global position
+    #     p = posQuad - (massManip/m)*R.dot(posManipFromBody)    # = (posQuad*massQuad + posManip*massManip*manipON)/m 
+        
+    #     # global velocity
+    #     v = velQuad - (massManip/m)*RDot.dot(posManipFromBody)            # we don't know gammaDot, so we assume to keep 
+    #                                                                                 # the manipulator blocked...May God be with us!
+
+    #     # ----------------- REFRESH -----------------------    
+
+    #     self.parameters.m = m
+
+    #     return concatenate([p,v]) 
 
 ##################################################################################################
 ########################### LYAPUNOV DERIVATIVES #################################################
@@ -360,16 +420,16 @@ def dVb_dv(p,v):
 ##################################################################################################
 
 def sigma(x):
-    return x/sqrt(1 + x**2.0)
+    return sigmaMax*x/sqrt(1 + x**2.0)
 
 def dsigma(x):
-    return 1.0/power(1 + x**2.0, 1.5)
+    return sigmaMax*1.0/power(1 + x**2.0, 1.5)
 
 def ddsigma(x):
-    return -3.0*x/power(1.0+x**2.0, 2.5)
+    return -sigmaMax*3.0*x/power(1.0+x**2.0, 2.5)
 
 def sigmaInt(x):
-    return sqrt(1.0 + x**2.0) - 1.0;
+    return sigmaMax*sqrt(1.0 + x**2.0) - 1.0;
 
 #--------------------------------------------------------------------------#
 
